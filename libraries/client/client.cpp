@@ -560,7 +560,7 @@ void client_impl::cancel_delegate_loop()
 
 void client_impl::delegate_loop()
 {
-   if( !_wallet->is_open() )
+   if( !_wallet->is_unlocked() )
       return;
 
    const auto now = blockchain::now();
@@ -573,7 +573,7 @@ void client_impl::delegate_loop()
    }
 
    fc::thread miner_threads[4]; 
-   fc::future<full_block > nonce[4];
+   fc::future<full_block > miner_result[4];
    while( _mining_enabled && !_delegate_loop_complete.canceled() )
    {
       // miners don't get to skip this check, they must check up on everyone else
@@ -586,26 +586,23 @@ void client_impl::delegate_loop()
                     ("count",_min_delegate_connection_count) );
 
          full_block next_block = _chain_db->generate_block( bts::blockchain::now() );
-         next_block.miner = _miner_address;
+         auto block_digest = next_block.digest();
          auto target = _chain_db->get_property( current_difficulty ).as_int64();
          for( uint32_t t = 0; t < 4; ++t )
          {
-            nonce[t] = miner_threads[t].async( [=]()-> full_block {
-                auto tmp = next_block;
-                for( uint32_t i = 1; i < 20000; ++i )
-                {
-                   tmp.nonce = i;
+              miner_result[t] = miner_threads[t].async( [=]()-> full_block {
+                   auto tmp = next_block;
+                   tmp.signature = _miner_private_key.sign_compact( block_digest );
                    if( tmp.difficulty() >= target )
                      return tmp;
-                }
-                return full_block();
+                   return full_block();
              } );
          }
          bool sent = false;
          for( uint32_t t = 0; t < 4; ++t )
          {
-            auto result = nonce[t].wait();
-            if( result.nonce && !sent )
+            auto result = miner_result[t].wait();
+            if( result.signature != signature_type() && !sent )
             {
                sent = true;
                on_new_block( result, result.id(), false );

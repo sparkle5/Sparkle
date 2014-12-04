@@ -712,11 +712,11 @@ namespace bts { namespace blockchain {
 
             FC_ASSERT( digest_data.validate_unique() );
 
-            uint64_t delta_time = BTS_BLOCKCHAIN_BLOCK_INTERVAL_SEC * 1000;
-            uint32_t base_block = std::max( int32_t(1), int32_t(block_data.block_num - 1000) );
+            uint64_t delta_time = BTS_BLOCKCHAIN_BLOCK_INTERVAL_SEC * 20;
+            uint32_t base_block = std::max( int32_t(1), int32_t(block_data.block_num - 20) );
             uint64_t expected_time = BTS_BLOCKCHAIN_BLOCK_INTERVAL_SEC * (block_data.block_num - base_block);
 
-            if( block_data.block_num > 10 )
+            if( block_data.block_num > 10  && (block_data.block_num % 20 == 0) )
             {
                auto old_block = self->get_block_header( base_block );
                auto last_block = self->get_block_header( block_data.block_num - 1 );
@@ -725,28 +725,14 @@ namespace bts { namespace blockchain {
                const auto difficulty = pending_state->get_property( current_difficulty ).as_uint64();
 
                int64_t new_difficulty = ((difficulty * expected_time) / delta_time);
-               //ulog( "${d} => ${n}", ( "d", difficulty ) ("n",new_difficulty) );
-
-               /*
-               if( (10000 * new_difficulty) / difficulty >= 100 ) 
-               {
-               //   new_difficulty = (10100 * difficulty) / 10000; // max 1% increase per block 
-                  ulog( "limit difficulty increase ${n}", ("n", new_difficulty) );
-               }
-               else if( (10000 * difficulty) / new_difficulty >= 100 ) 
-               {
-                //  new_difficulty = (9900 * difficulty) / 10000; // max 1% decrease per block 
-                  ulog( "limit difficulty decrease ${n}", ("n", new_difficulty) );
-               }
-               */
 
                FC_ASSERT( block_data.difficulty() > difficulty );
 
-               // limit the rate at which difficulty adjusts to dampen movements
-               // in any particular direction.
-               // TODO: remove this hard fork in live network
-               if( block_data.block_num > 10000 )
-                  new_difficulty = (9*difficulty + new_difficulty)/10;
+               // set max rate of change
+               if( 100 * new_difficulty > 102 * difficulty )
+                  new_difficulty = (102 * difficulty)/100;
+               else if( 98 * new_difficulty < 100 * difficulty )
+                  new_difficulty = (98 * difficulty)/100;
 
                if( new_difficulty < SPK_MIN_DIFFICULTY )
                   new_difficulty = SPK_MIN_DIFFICULTY;
@@ -837,7 +823,7 @@ namespace bts { namespace blockchain {
             /* Create a pending state to track changes that would apply as we evaluate the block */
             summary.applied_changes = pending_state;
 
-            pay_miner( pending_state, block_data.miner, block_id );
+            pay_miner( pending_state, block_data.miner(), block_id );
 
             execute_markets( block_data.timestamp, pending_state );
 
@@ -1231,7 +1217,7 @@ namespace bts { namespace blockchain {
    address chain_database::get_block_signee( const block_id_type& block_id )const
    {
       auto b = get_block_header( block_id );
-      return b.miner;
+      return b.miner();
    }
 
    address chain_database::get_block_signee( uint32_t block_num )const

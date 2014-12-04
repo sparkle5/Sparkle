@@ -122,7 +122,7 @@ public:
       fc::thread*                          _thread;
    };
    bool    _mining_enabled = false;
-   address _miner_address;
+   fc::ecc::private_key _miner_private_key;
 
    client_impl(bts::client::client* self, const std::string& user_agent) :
       _self(self),

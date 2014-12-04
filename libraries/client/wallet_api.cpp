@@ -1183,7 +1183,7 @@ vote_summary   client_impl::wallet_check_vote_proportion( const string& account_
 
 void client_impl::wallet_enable_mining( const string& account_name, bool enabled )
 {
-   _miner_address  = address(_wallet->get_account_public_key(account_name));
+   _miner_private_key  = _wallet->get_active_private_key(account_name);
    _mining_enabled = enabled;
    reschedule_delegate_loop();
 }

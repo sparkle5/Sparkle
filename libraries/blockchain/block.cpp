@@ -10,7 +10,11 @@ namespace bts { namespace blockchain {
       return enc.result();
    }
 
-   block_id_type block_header::id()const
+   address       signed_block_header::miner()const
+   {
+      return address(fc::ecc::public_key(signature, digest()));
+   }
+   block_id_type signed_block_header::id()const
    {
       fc::sha512::encoder enc;
       fc::raw::pack( enc, *this );
@@ -33,7 +37,7 @@ namespace bts { namespace blockchain {
 
    full_block::operator digest_block()const
    {
-      digest_block db( (block_header&)*this );
+      digest_block db( (signed_block_header&)*this );
       db.user_transaction_ids.reserve( user_transactions.size() );
       for( auto item : user_transactions )
          db.user_transaction_ids.push_back( item.id() );
@@ -53,12 +57,12 @@ namespace bts { namespace blockchain {
       return true;
    }
 
-   int64_t block_header::difficulty()const
+   int64_t signed_block_header::difficulty()const
    {
        const fc::sha256 max_hash;
        memset( max_hash.data(), 0xff, sizeof(max_hash) );
-       max_hash.data()[0] = 0;
-       max_hash.data()[1] = 0x0f;
+       max_hash.data()[0] = 0x0f;
+       max_hash.data()[1] = 0xff;
        fc::bigint max_hash_int( max_hash.data(), sizeof(max_hash) );
        const auto block_id = id();
        fc::bigint block_id_int( block_id.data(), sizeof(max_hash) );
