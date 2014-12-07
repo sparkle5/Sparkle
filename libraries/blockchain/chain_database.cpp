@@ -716,17 +716,18 @@ namespace bts { namespace blockchain {
             uint32_t base_block = std::max( int32_t(1), int32_t(block_data.block_num - 20) );
             uint64_t expected_time = BTS_BLOCKCHAIN_BLOCK_INTERVAL_SEC * (block_data.block_num - base_block);
 
+            const auto difficulty = pending_state->get_property( current_difficulty ).as_uint64();
+
+	    if( block_data.block_num > 20000 ) 
+ 		FC_ASSERT( block_data.difficulty() > difficulty );
+
             if( block_data.block_num > 10  && (block_data.block_num % 20 == 0) )
             {
                auto old_block = self->get_block_header( base_block );
                auto last_block = self->get_block_header( block_data.block_num - 1 );
                delta_time = (last_block.timestamp - old_block.timestamp).to_seconds();
 
-               const auto difficulty = pending_state->get_property( current_difficulty ).as_uint64();
-
                int64_t new_difficulty = ((difficulty * expected_time) / delta_time);
-
-               FC_ASSERT( block_data.difficulty() > difficulty );
 
                // set max rate of change
                if( 100 * new_difficulty > 102 * difficulty )
@@ -739,7 +740,6 @@ namespace bts { namespace blockchain {
 
                pending_state->set_property( current_difficulty, new_difficulty );
             }
-
       } FC_CAPTURE_AND_RETHROW( (block_data) ) }
 
       void chain_database_impl::update_head_block( const full_block& block_data )
