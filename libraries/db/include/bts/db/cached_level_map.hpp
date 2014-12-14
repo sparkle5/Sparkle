@@ -13,7 +13,7 @@ namespace bts { namespace db {
         { try {
             _db.open( dir, create, leveldb_cache_size );
             for( auto itr = _db.begin(); itr.valid(); ++itr )
-                _cache[ itr.key() ] = itr.value();
+                _cache.emplace_hint( _cache.end(), itr.key(), itr.value() );
             _write_through = write_through;
             _sync_on_write = sync_on_write;
         } FC_CAPTURE_AND_RETHROW( (dir)(create)(leveldb_cache_size)(write_through)(sync_on_write) ) }
@@ -29,8 +29,12 @@ namespace bts { namespace db {
 
         void set_write_through( bool write_through )
         { try {
-            if( !_write_through && write_through )
+            if( write_through == _write_through )
+                return;
+
+            if( write_through )
                 flush();
+
             _write_through = write_through;
         } FC_CAPTURE_AND_RETHROW( (write_through) ) }
 

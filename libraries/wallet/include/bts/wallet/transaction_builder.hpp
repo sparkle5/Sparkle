@@ -197,7 +197,16 @@ namespace bts { namespace wallet {
                                                      const vector<address>& addresses,
                                                      const vote_selection_method& vote_method = vote_none );
 
-      transaction_builder& withdraw_from_balance(const balance_id_type& from, 
+      transaction_builder& set_object(const string& payer_name,
+                                      const object_record& obj,
+                                      bool create );
+
+      transaction_builder& set_edge(const string& payer_name,
+                                    const edge_record& obj );
+
+
+
+      transaction_builder& withdraw_from_balance(const balance_id_type& from,
                                                  const share_type& amount);
       transaction_builder& deposit_to_balance(const balance_id_type& to,
                                               const asset& amount,
@@ -275,6 +284,10 @@ namespace bts { namespace wallet {
                                         asset cover_amount,
                                         const order_id_type& order_id);
 
+      transaction_builder& asset_authorize_key( const string& symbol, 
+                                                const address& owner,  
+                                                object_id_type meta );
+
       transaction_builder& update_block_signing_key( const string& authorizing_account_name,
                                                      const string& delegate_name,
                                                      const public_key_type& block_signing_key );
@@ -284,7 +297,14 @@ namespace bts { namespace wallet {
                                          const optional<string>& description,
                                          const optional<variant>& public_data,
                                          const optional<double>& maximum_share_supply,
-                                         const optional<uint64_t>& precision );
+                                         const optional<uint64_t>& precision,
+                                         const share_type& issuer_fee,
+                                         uint32_t flags,
+                                         uint32_t issuer_perms,
+                                         const optional<account_id_type> issuer_account_id,
+                                         uint32_t required_sigs,
+                                         const vector<address>& authority 
+                                       );
 
       /**
        * @brief Balance the books and pay the fees
@@ -296,7 +316,7 @@ namespace bts { namespace wallet {
        * This function should be called only once, at the end of the builder function calls. Calling it multiple times
        * may cause attempts to over-withdraw balances.
        */
-      transaction_builder& finalize();
+      transaction_builder& finalize( bool pay_fee = true );
       /// @}
 
       /**

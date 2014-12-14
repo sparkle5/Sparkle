@@ -253,6 +253,157 @@
         "aliases" : ["set_expiration"]
       },
       {
+        "method_name": "wallet_object_create",
+        "description": "Creates a normal user object. If no owner info is specified, uses a new address from payer.",
+        "return_type": "transaction_record",
+        "parameters" :
+          [
+            {
+              "name" : "account",
+              "type" : "account_name",
+              "description" : ""
+            },
+            {
+               "name" : "user_data",
+               "type" : "variant",
+               "description" : "",
+               "default_value": ""
+            },
+            {
+               "name" : "m",
+               "type" : "int32_t",
+               "description" : "",
+               "default_value" : -1
+            },
+            {
+               "name" : "owners",
+               "type" : "address_list",
+               "description" : "",
+               "default_value": []
+            }
+        ],
+        "prerequisites" : ["wallet_unlocked"],
+        "aliases" : ["create_object"]
+      },
+      {
+        "method_name": "wallet_object_update",
+        "description": "Update a normal user object.",
+        "return_type": "transaction_builder",
+        "parameters" :
+          [
+            {
+              "name" : "paying_account_name",
+              "type" : "sending_account_name",
+              "description" : "the source account to draw the shares from"
+            },
+            {
+              "name" : "object_id",
+              "type" : "object_id_type",
+              "description" : "the object to update"
+            },
+            {
+               "name" : "user_data",
+               "type" : "variant",
+               "description" : "",
+               "default_value": ""
+            },
+            {
+                "name": "sign_and_broadcast",
+                "type": "bool",
+                "description": "",
+                "default_value": true
+            }
+        ],
+        "prerequisites" : ["wallet_unlocked"],
+        "aliases" : ["update_object"]
+      },
+      {
+        "method_name": "wallet_object_transfer",
+        "description": "Update a normal user object's owner.",
+        "return_type": "transaction_builder",
+        "parameters" :
+          [
+            {
+              "name" : "paying_account_name",
+              "type" : "sending_account_name",
+              "description" : "the source account to draw the shares from"
+            },
+            {
+              "name" : "object_id",
+              "type" : "object_id_type",
+              "description" : "the object to update"
+            },
+            {
+               "name" : "m",
+               "type" : "uint32_t",
+               "description" : ""
+            },
+            {
+               "name" : "owners",
+               "type" : "address_list",
+               "description" : ""
+            },
+            {
+                "name": "sign_and_broadcast",
+                "type": "bool",
+                "description": "",
+                "default_value": true
+            }
+        ],
+        "prerequisites" : ["wallet_unlocked"],
+        "aliases" : ["transfer_object"]
+      },
+      {
+        "method_name": "wallet_object_list",
+        "description": "List objects that belong to an account.",
+        "return_type": "object_array",
+        "parameters" :
+          [
+            {
+              "name" : "account",
+              "type" : "account_name",
+              "description" : "Account to fetch objects for"
+            }
+          ],
+        "prerequisites" : ["wallet_unlocked"],
+        "aliases" : ["object_list"]
+      },
+      {
+        "method_name": "wallet_set_edge",
+        "description": "Create or update an edge object.",
+        "return_type": "transaction_builder",
+        "parameters" :
+          [
+            {
+              "name" : "paying_account",
+              "type" : "account_name",
+              "description" : "Account that will pay for this transaction"
+            },
+            {
+              "name" : "from",
+              "type" : "object_id_type",
+              "description" : ""
+            },
+            {
+              "name" : "to",
+              "type" : "object_id_type",
+              "description" : "Account that will pay for this transaction"
+            },
+            {
+              "name" : "name",
+              "type" : "string",
+              "description" : "The edge name (the 'key', used in index)"
+            },
+            {
+              "name" : "value",
+              "type" : "variant",
+              "description" : "The edge 'value', not part of the index"
+            }
+          ],
+        "prerequisites" : ["wallet_unlocked"],
+        "aliases" : ["set_edge"]
+      },
+      {
         "method_name": "wallet_account_transaction_history",
         "description": "Lists transaction history for the specified account",
         "return_type": "pretty_transactions",
@@ -490,20 +641,49 @@
         "prerequisites" : ["wallet_open"]
       },
       {
+        "method_name": "wallet_asset_authorize_key",
+        "description": "Authorizes a public key to control funds of a particular asset class.  Requires authority of asset issuer",
+        "return_type": "transaction_record",
+        "parameters" : [
+            {
+              "name" : "paying_account",
+              "type" : "account_name",
+              "description" : "the account that will pay the transaction fee"
+            },
+            {
+              "name" : "symbol",
+              "type" : "asset_symbol",
+              "description" : "the asset granting authorization"
+            },
+            {
+              "name" : "address",
+              "type" : "string",
+              "description" : "the address being granted permission, or the public key, or the account name"
+            },
+            {
+               "name" : "meta",
+               "type" : "object_id_type",
+               "description" : "-1 to remove authorization, otherwise a link to an object in the object graph",
+               "default_value" : 0
+            }
+           ],
+        "prerequisites" : ["wallet_unlocked"]
+      },
+      {
         "method_name": "wallet_burn",
         "description": "Burns given amount to the given account.  This will allow you to post message and +/- sentiment on someones account as a form of reputation.",
         "return_type": "transaction_record",
         "parameters" :
           [
             {
-              "name" : "amount_to_transfer",
+              "name" : "amount_to_burn",
               "type" : "real_amount",
-              "description" : "the amount of shares to transfer"
+              "description" : "the amount of shares to burn"
             },
             {
               "name" : "asset_symbol",
               "type" : "asset_symbol",
-              "description" : "the asset to transfer"
+              "description" : "the asset to burn"
             },
             {
               "name" : "from_account_name",
@@ -602,7 +782,6 @@
          ],
          "prerequisites" : ["wallet_open"]
       },
-
       {
          "method_name" : "wallet_transfer_to_address",
          "description" : "Do a simple (non-TITAN) transfer to an address",
@@ -1504,6 +1683,42 @@
                   "type" : "optional_uint64_t",
                   "description" : "the new precision to give the asset; or null to keep the current precision",
                   "default_value" : null
+               },
+               {
+                  "name" : "issuer_transaction_fee",
+                  "type" : "share_type",
+                  "description" : "an additional fee (denominated in issued asset) charged by the issuer on every transaction that uses this asset type",
+                  "default_value" : 0
+               },
+               {
+                  "name" : "flags",
+                  "type" : "asset_permission_array",
+                  "description" : "a set of flags set by the issuer (if they have permission to set them)",
+                  "default_value" : []
+               },
+               {
+                  "name" : "issuer_permissions",
+                  "type" : "asset_permission_array",
+                  "description" : "a set of permissions an issuer retains",
+                  "default_value" : ["retractable","market_halt","balance_halt","supply_limit"]
+               },
+               {
+                  "name" : "issuer_account_name",
+                  "type" : "account_name",
+                  "description" : "used to transfer the asset to a new user",
+                  "default_value" : ""
+               },
+               {
+                  "name" : "required_sigs",
+                  "type" : "uint32_t",
+                  "description" : "number of signatures from the authority required to control this asset record",
+                  "default_value" : 0
+               },
+               {
+                  "name" : "authority",
+                  "type" : "address_list",
+                  "description" : "owner keys that control this asset record",
+                  "default_value" : []
                }
             ],
          "prerequisites" : ["wallet_unlocked"]
@@ -1569,6 +1784,22 @@
          "is_const" : true,
          "prerequisites" : ["wallet_open"],
          "aliases" : ["balance", "getbalance"]
+      },
+      {
+         "method_name"    : "wallet_account_balance_extended",
+         "description"    : "Lists the total asset balances across all withdraw condition types for the specified account",
+         "return_type"    : "account_extended_balance_type",
+         "parameters"     : [
+         {
+            "name" : "account_name",
+            "type" : "account_name",
+            "description" : "the account to get a balance for, or leave empty for all accounts",
+            "default_value" : ""
+         }
+         ],
+         "is_const" : true,
+         "prerequisites" : ["wallet_open"],
+         "aliases" : []
       },
       {
          "method_name"    : "wallet_account_balance_ids",
@@ -1970,8 +2201,8 @@
             {
                "name" : "account_name",
                "type" : "account_name",
-               "description" : "the account for which to get the orders, or 'ALL' to get them all",
-               "default_value" : "ALL"
+               "description" : "the account for which to get the orders, or empty for all accounts",
+               "default_value" : ""
             }
          ],
          "prerequisites" : ["wallet_open"],
@@ -1985,8 +2216,8 @@
             {
                "name" : "account_name",
                "type" : "account_name",
-               "description" : "the account for which to get the orders, or 'ALL' to get them all",
-               "default_value" : "ALL"
+               "description" : "the account for which to get the orders, or empty for all accounts",
+               "default_value" : ""
             },
             {
                "name" : "limit",
@@ -2186,6 +2417,38 @@
          "prerequisites" : ["wallet_unlocked"]
       },
       {
+         "method_name" : "wallet_balance_set_vote_info",
+         "description" : "Set this balance's voting address and slate",
+         "return_type" : "transaction_builder",
+         "parameters"  : [
+               {
+                  "name" : "balance_id",
+                  "type" : "address",
+                  "description" : "the current name of the account"
+               },
+               {
+                  "name" : "voter_address",
+                  "type" : "string",
+                  "description" : "The new voting address. If none is specified, tries to re-use existing address.",
+                  "default_value": ""
+               },
+               {
+                 "name" : "vote_method",
+                 "type" : "vote_selection_method",
+                 "description" : "enumeration [vote_none | vote_all | vote_random | vote_recommended] ",
+                 "default_value" : "vote_all"
+               },
+               {
+                  "name" : "sign_and_broadcast",
+                  "type" : "bool",
+                  "description" : "",
+                  "default_value" : "true"
+               }
+            ],
+         "prerequisites" : ["wallet_open"],
+         "aliases" : ["set_vote_info"]
+      },
+      {
          "method_name" : "wallet_publish_slate",
          "description" : "Publishes the current wallet delegate slate to the public data associated with the account",
          "return_type" : "transaction_record",
@@ -2219,6 +2482,19 @@
                 "type" : "account_name",
                 "description" : "The account to pay transaction fees with or leave empty to pay with publishing account",
                 "default_value" : ""
+            }
+         ],
+         "prerequisites" : ["wallet_unlocked"]
+      },
+      {
+         "method_name" : "wallet_collect_vested_balances",
+         "description" : "Collect specified account's vested balances",
+         "return_type" : "transaction_record",
+         "parameters"  : [
+            {
+                "name" : "account_name",
+                "type" : "account_name",
+                "description" : "account to collect vested balances for"
             }
          ],
          "prerequisites" : ["wallet_unlocked"]
@@ -2489,6 +2765,15 @@
             }
          ],
          "prerequisites" : ["wallet_unlocked"]
-      }
+      },
+      {
+         "method_name" : "wallet_generate_brain_seed",
+         "description" : "Generates a human friendly brain wallet key starting with a public salt as the first word",
+         "return_type" : "string",
+         "parameters"  : [
+         ],
+         "is_const" : true,
+         "prerequisites" : []
+      },
     ]
 }

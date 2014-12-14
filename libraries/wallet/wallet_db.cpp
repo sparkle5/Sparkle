@@ -4,6 +4,7 @@
 
 #include <fc/io/json.hpp>
 #include <fstream>
+#include <iostream>
 
 namespace bts { namespace wallet {
 
@@ -255,45 +256,62 @@ namespace bts { namespace wallet {
        FC_ASSERT( !account_record.valid(), "Wallet already contains an account with that name!" );
 
        uint32_t key_index = get_last_wallet_child_key_index();
-       private_key_type account_private_key;
-       public_key_type account_public_key;
-       address account_address;
+       private_key_type owner_private_key, active_private_key;
+       public_key_type owner_public_key, active_public_key;
+       address owner_address, active_address;
        while( true )
        {
            ++key_index;
            FC_ASSERT( key_index != 0, "Overflow!" );
 
-           account_private_key = get_wallet_child_key( password, key_index );
-           account_public_key = account_private_key.get_public_key();
-           account_address = address( account_public_key );
+           owner_private_key = get_wallet_child_key( password, key_index );
+           owner_public_key = owner_private_key.get_public_key();
+           owner_address = address( owner_public_key );
 
-           account_record = lookup_account( account_address );
+           account_record = lookup_account( owner_address );
            if( account_record.valid() ) continue;
 
-           owallet_key_record key_record = lookup_key( account_address );
+           owallet_key_record key_record = lookup_key( owner_address );
+           if( key_record.valid() && key_record->has_private_key() ) continue;
+
+           active_private_key = get_account_child_key( owner_private_key, 0 );
+           active_public_key = active_private_key.get_public_key();
+           active_address = address( active_public_key );
+
+           account_record = lookup_account( active_address );
+           if( account_record.valid() ) continue;
+
+           key_record = lookup_key( active_address );
            if( key_record.valid() && key_record->has_private_key() ) continue;
 
            break;
        }
 
-       key_data key;
-       key.account_address = account_address;
-       key.public_key = account_public_key;
-       key.encrypt_private_key( password, account_private_key );
-       key.gen_seq_number = key_index;
+       key_data active_key;
+       active_key.account_address = owner_address;
+       active_key.public_key = active_public_key;
+       active_key.encrypt_private_key( password, active_private_key );
+
+       key_data owner_key;
+       owner_key.account_address = owner_address;
+       owner_key.public_key = owner_public_key;
+       owner_key.encrypt_private_key( password, owner_private_key );
+       owner_key.gen_seq_number = key_index;
 
        account_data account;
        account.name = account_name;
-       account.owner_key = account_public_key;
-       account.set_active_key( blockchain::now(), account_public_key );
-       account.private_data = private_data;
+       account.owner_key = owner_public_key;
+       account.set_active_key( blockchain::now(), active_public_key );
+       account.last_update = blockchain::now();
        account.is_my_account = true;
+       account.private_data = private_data;
 
+       store_key( active_key );
        set_last_wallet_child_key_index( key_index );
-       store_key( key );
+       store_key( owner_key );
        store_account( account );
 
-       return account_public_key;
+       return owner_public_key;
    } FC_CAPTURE_AND_RETHROW( (account_name) ) }
 
    private_key_type wallet_db::get_account_child_key( const private_key_type& active_private_key, uint32_t seq_num )const
@@ -681,13 +699,16 @@ namespace bts { namespace wallet {
        for( auto iter = my->_records.begin(); iter.valid(); ++iter )
            records.push_back( iter.value() );
 
+
        // Repair account_data.is_my_account and key_data.account_address
+       uint32_t count = 0;
        for( generic_wallet_record& record : records )
        {
            try
            {
                if( wallet_record_type_enum( record.type ) == account_record_type )
                {
+                   std::cout << "\rRepairing account record " << std::to_string( ++count ) << std::flush;
                    wallet_account_record account_record = record.as<wallet_account_record>();
                    store_account( account_record );
                }
@@ -699,12 +720,14 @@ namespace bts { namespace wallet {
 
        // Repair key_data.public_key when I have the private key and
        // repair key_data.account_address and account_data.is_my_account
+       count = 0;
        for( generic_wallet_record& record : records )
        {
            try
            {
                if( wallet_record_type_enum( record.type ) == key_record_type )
                {
+                   std::cout << "\rRepairing key record     " << std::to_string( ++count ) << std::flush;
                    wallet_key_record key_record = record.as<wallet_key_record>();
                    if( key_record.has_private_key() )
                    {
@@ -733,16 +756,18 @@ namespace bts { namespace wallet {
        }
 
        // Repair transaction_data.record_id
+       count = 0;
        for( generic_wallet_record& record : records )
        {
            try
            {
                if( wallet_record_type_enum( record.type ) == transaction_record_type )
                {
+                   std::cout << "\rRepairing transaction record     " << std::to_string( ++count ) << std::flush;
                    wallet_transaction_record transaction_record = record.as<wallet_transaction_record>();
                    if( transaction_record.trx.id() != signed_transaction().id()  )
                    {
-                       const transaction_id_type record_id = transaction_record.trx.permanent_id();
+                       const transaction_id_type record_id = transaction_record.trx.id();
                        if( transaction_record.record_id != record_id )
                        {
                            transactions.erase( transaction_record.record_id );
@@ -759,6 +784,7 @@ namespace bts { namespace wallet {
            {
            }
        }
+       std::cout << "\rWallet records repaired.                                  " << std::flush << "\n";
    } FC_CAPTURE_AND_RETHROW() }
 
    void wallet_db::set_property( property_enum property_id, const variant& v )

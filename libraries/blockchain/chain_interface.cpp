@@ -1,5 +1,6 @@
 #include <bts/blockchain/chain_interface.hpp>
 #include <bts/blockchain/exceptions.hpp>
+#include <fc/io/raw_variant.hpp>
 
 #include <algorithm>
 #include <locale>
@@ -44,17 +45,28 @@ namespace bts { namespace blockchain {
       return is_valid_account_name(supername);
    } FC_CAPTURE_AND_RETHROW( (name) ) }
 
+   /**
+    *  Symbol names must be Alpha Numeric and may have a single '.' in the name that cannot be
+    *  the first or last.
+    */
    bool chain_interface::is_valid_symbol_name( const string& symbol )const
    { try {
        if( symbol.size() < BTS_BLOCKCHAIN_MIN_SYMBOL_SIZE || symbol.size() > BTS_BLOCKCHAIN_MAX_SYMBOL_SIZE )
            return false;
 
-       std::locale loc;
-       for( const auto& c : symbol )
+       int dots = 0;
+       for( const char& c : symbol )
        {
-           if( !std::isalnum( c, loc ) || !std::isupper( c, loc ) )
+           if( c == '.' )
+           {
+              if( ++dots > 1 )
+               return false;
+           }
+           else if( !std::isalnum( c, std::locale::classic() ) || !std::isupper( c, std::locale::classic() ) )
                return false;
        }
+       if( symbol.back() == '.' ) return false;
+       if( symbol.front() == '.' ) return false;
 
        if( symbol.size() >= 3 && symbol.find( "BIT" ) == 0 )
            return false;
@@ -127,19 +139,93 @@ namespace bts { namespace blockchain {
       return next_id;
    }
 
-#if 0
-   proposal_id_type   chain_interface::last_proposal_id()const
+   object_id_type chain_interface::last_object_id()const
    {
-       return get_property( chain_property_enum::last_proposal_id ).as<proposal_id_type>();
+       return get_property( chain_property_enum::last_object_id ).as<object_id_type>();
    }
 
-   proposal_id_type   chain_interface::new_proposal_id()
+   object_id_type chain_interface::new_object_id( obj_type type )
    {
-      auto next_id = last_proposal_id() + 1;
-      set_property( chain_property_enum::last_proposal_id, next_id );
+      auto last_id = last_object_id();
+      auto tmp = object_record( type, last_id );
+      tmp.set_id( tmp.type(), tmp.short_id() + 1 );
+      auto next_id = tmp._id;
+      set_property( chain_property_enum::last_object_id, object_id_type( next_id ) );
       return next_id;
    }
-#endif
+
+   // Get an object for whom get_object_condition(o) will not throw and will represent
+   // the condition that is also the owner for this given object
+   object_id_type       chain_interface::get_owner_object( const object_id_type& obj )
+   {
+       FC_ASSERT(!"unimplemented");
+   }
+
+   multisig_condition   chain_interface::get_object_condition( const object_record& obj, int depth )
+   { try {
+       if( depth >= 100 )//BTS_OWNER_DEPENDENCY_MAX_DEPTH )
+           FC_ASSERT(!"Cannot determine object condition.");
+       multisig_condition condition;
+       switch( obj.type() )
+       {
+           case( obj_type::base_object ):
+           {
+               if( obj.owner_object == obj._id )
+                   return obj._owners;
+               else
+                   return get_object_condition( obj.owner_object, depth+1 );
+           }
+           case( obj_type::edge_object ):
+           {
+               ilog("@n object: ${o}", ("o", obj));
+               const edge_record& edge = obj.as<edge_record>();
+               ilog("@n edge: ${e}", ("e", edge));
+               auto from_object = get_object_record( edge.from );
+               FC_ASSERT( from_object.valid(), "Unrecognized from object.");
+               return get_object_condition( *from_object, depth+1 );
+           }
+           case( obj_type::account_object ):
+           {
+               auto account_id = obj.short_id();
+               auto oacct = get_account_record( account_id );
+               FC_ASSERT( oacct.valid(), "No such account object!");
+               condition.owners.insert( oacct->owner_address() );
+               condition.required = 1;
+               return condition;
+           }
+           case( obj_type::asset_object ):
+           {
+               auto oasset = get_asset_record( obj.short_id() );
+               FC_ASSERT( oasset.valid(), "No such asset!" );
+               if( oasset->issuer_account_id > 0 )
+               {
+                   auto oacct = get_account_record( oasset->issuer_account_id );
+                   FC_ASSERT(!"This asset has an issuer but the issuer account doens't exist. Crap!");
+                   condition.owners.insert( oacct->owner_address() );
+                   condition.required = 1;
+                   return condition;
+               }
+               else
+               {
+                   FC_ASSERT(!"That asset has no issuer!");
+               }
+           }
+           default:
+           {
+               FC_ASSERT(!"I don't know how to get the condition for this object type!");
+           }
+       }
+       FC_ASSERT(!"This code path should not happen.");
+   } FC_CAPTURE_AND_RETHROW( (obj.short_id())(obj.type())(obj) ) }
+
+    oedge_record               chain_interface::get_edge( const object_id_type& id )
+    {
+        auto object = get_object_record( id );
+        if( NOT object.valid() )
+            return oedge_record();
+        FC_ASSERT( object->type() == edge_object, "This object is not an edge!"); // TODO check form ID as first check
+        return object->as<edge_record>();
+    }
 
    vector<account_id_type> chain_interface::get_active_delegates()const
    { try {
@@ -165,7 +251,7 @@ namespace bts { namespace blockchain {
       auto oquote_asset = get_asset_record( price_to_pretty_print.quote_asset_id );
       if( !oquote_asset ) FC_CAPTURE_AND_THROW( unknown_asset_id, (price_to_pretty_print.quote_asset_id) );
 
-      return fc::variant(string(price_to_pretty_print.ratio * obase_asset->get_precision() / oquote_asset->get_precision())).as_double() / (BTS_BLOCKCHAIN_MAX_SHARES*1000);
+      return fc::variant(string(price_to_pretty_print.ratio * obase_asset->precision / oquote_asset->precision)).as_double() / (BTS_BLOCKCHAIN_MAX_SHARES*1000);
    }
 
    string chain_interface::to_pretty_price( const price& price_to_pretty_print )const
@@ -177,8 +263,8 @@ namespace bts { namespace blockchain {
       if( !oquote_asset ) FC_CAPTURE_AND_THROW( unknown_asset_id, (price_to_pretty_print.quote_asset_id) );
 
       auto tmp = price_to_pretty_print;
-      tmp.ratio *= obase_asset->get_precision();
-      tmp.ratio /= oquote_asset->get_precision();
+      tmp.ratio *= obase_asset->precision;
+      tmp.ratio /= oquote_asset->precision;
 
       return tmp.ratio_string() + " " + oquote_asset->symbol + " / " + obase_asset->symbol;
    } FC_CAPTURE_AND_RETHROW( (price_to_pretty_print) ) }
@@ -224,8 +310,8 @@ namespace bts { namespace blockchain {
       price ugly_price(price_string + " " + std::to_string(quote_record->id) + " / " + std::to_string(base_record->id));
       if( do_precision_dance )
       {
-         ugly_price.ratio *= quote_record->get_precision();
-         ugly_price.ratio /= base_record->get_precision();
+         ugly_price.ratio *= quote_record->precision;
+         ugly_price.ratio /= base_record->precision;
       }
       return ugly_price;
    } FC_CAPTURE_AND_RETHROW( (price_string)(base_symbol)(quote_symbol) ) }
@@ -236,7 +322,7 @@ namespace bts { namespace blockchain {
       const share_type amount = ( a.amount >= 0 ) ? a.amount : -a.amount;
       if( oasset.valid() )
       {
-         const auto precision = oasset->get_precision();
+         const auto precision = oasset->precision;
          string decimal = fc::to_string( precision + ( amount % precision ) );
          decimal[0] = '.';
          const auto str = fc::to_pretty_string( amount / precision ) + decimal + " " + oasset->symbol;

@@ -49,16 +49,84 @@ BOOST_FIXTURE_TEST_CASE( basic_commands, chain_fixture )
    exec( clientb, "wallet_delegate_set_block_production delegate30 true" );
    exec( clientb, "wallet_delegate_set_block_production delegate32 true" );
    exec(clientb, "wallet_set_transaction_scanning true");
+   exec(clienta, "wallet_set_transaction_scanning true");
 
-   exec( clientb, "wallet_account_create b-account" );
-   exec( clientb, "wallet_account_register b-account delegate30 null 100" );
+   exec( clienta, "wallet_account_create b-account" );
+   exec( clienta, "wallet_account_register b-account delegate33" );
+   produce_block(clienta);
    produce_block(clientb);
    exec( clientb, "balance delegate30");
-   exec( clientb, "wallet_asset_create BUSD BitUSD delegate30 \"paper bucks\" null 1000000000 10000 true" );
+   //wallet_asset_create <symbol> <asset_name> <issuer_name> <description> <maximum_share_supply> <precision> [public_data] [is_market_issued]
+   exec( clientb, "wallet_asset_create USD BitUSD delegate30 \"paper bucks\" 100000000 10000 null true" );
    exec( clientb, "help" );
+   produce_block(clientb);
+
+   exec(clientb, "wallet_publish_price_feed delegate0 1 USD" ); //[[\"USD\",1]]" );
+   exec(clientb, "wallet_publish_price_feed delegate2 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate4 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate6 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate8 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate10 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate12 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate14 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate16 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate18 1 USD" );
+   produce_block(clienta);
+   exec(clientb, "wallet_publish_price_feed delegate20 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate22 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate24 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate26 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate28 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate30 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate32 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate34 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate36 1 USD" );
+   produce_block(clientb);
+   exec(clientb, "wallet_publish_price_feed delegate38 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate40 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate42 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate44 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate46 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate48 1 USD" );
+   produce_block(clienta);
+   exec(clientb, "wallet_publish_price_feed delegate50 1 USD" );
+   exec(clientb, "wallet_publish_price_feed delegate52 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate1 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate3 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate5 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate7 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate9 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate11 1 USD" );
+   produce_block(clientb);
+   exec(clienta, "wallet_publish_price_feed delegate13 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate15 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate17 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate19 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate21 1 USD" );
+   produce_block(clienta);
+   exec(clienta, "wallet_publish_price_feed delegate23 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate25 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate27 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate29 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate31 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate33 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate35 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate37 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate39 1 USD" );
+   produce_block(clientb);
+   exec(clienta, "wallet_publish_price_feed delegate41 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate43 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate45 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate47 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate49 1 USD" );
+   exec(clienta, "wallet_publish_price_feed delegate51 1 USD" );
+
+   produce_block(clienta);
+
 //   wallet_transfer_from_with_escrow <amount_to_transfer> <asset_symbol> <paying_account_name> <from_account_name> <to_account_name> <escrow_account_name> <agreement> <memo>
    exec( clientb, "wallet_transfer_from_with_escrow 1000 SPK delegate24 delegate24 b-account delegate36 \"5100000000000000000000000000000000000000000000000000000000000005\" \"my memo\"" );
    produce_block(clientb);
+   produce_block(clienta);
    exec( clientb, "wallet_escrow_summary delegate24" );
    exec( clienta, "wallet_escrow_summary b-account" );
    exec( clienta, "wallet_escrow_summary delegate36" );
@@ -68,6 +136,7 @@ BOOST_FIXTURE_TEST_CASE( basic_commands, chain_fixture )
    exec( clientb, "balance delegate24" );
    exec( clienta, "balance b-account" );
    exec( clientb, "wallet_release_escrow delegate24 SPK6LPZ1zmNFrbabpzTa4y7ccGMvn5jb9TQV sender 0 1111111" );
+   //exec( clientb, "wallet_release_escrow delegate24 XTS3UQU85qXeCa7hAP4ps118jSN3cAMSj2bx sender 0 1111111" );
    produce_block(clientb);
    exec( clientb, "wallet_escrow_summary delegate24" );
    exec( clienta, "wallet_escrow_summary b-account" );
@@ -76,72 +145,6 @@ BOOST_FIXTURE_TEST_CASE( basic_commands, chain_fixture )
    produce_block(clientb);
    exec( clienta, "info" );
    return;
-   produce_block(clientb);
-
-   exec(clientb, "wallet_publish_price_feed delegate0 1 BUSD" ); //[[\"USD\",1]]" );
-   exec(clientb, "wallet_publish_price_feed delegate2 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate4 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate6 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate8 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate10 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate12 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate14 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate16 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate18 1 BUSD" );
-   produce_block(clienta);
-   exec(clientb, "wallet_publish_price_feed delegate20 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate22 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate24 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate26 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate28 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate30 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate32 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate34 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate36 1 BUSD" );
-   produce_block(clientb);
-   exec(clientb, "wallet_publish_price_feed delegate38 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate40 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate42 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate44 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate46 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate48 1 BUSD" );
-   produce_block(clienta);
-   exec(clientb, "wallet_publish_price_feed delegate50 1 BUSD" );
-   exec(clientb, "wallet_publish_price_feed delegate52 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate1 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate3 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate5 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate7 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate9 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate11 1 BUSD" );
-   produce_block(clientb);
-   exec(clienta, "wallet_publish_price_feed delegate13 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate15 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate17 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate19 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate21 1 BUSD" );
-   produce_block(clienta);
-   exec(clienta, "wallet_publish_price_feed delegate23 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate25 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate27 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate29 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate31 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate33 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate35 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate37 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate39 1 BUSD" );
-   produce_block(clientb);
-   exec(clienta, "wallet_publish_price_feed delegate41 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate43 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate45 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate47 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate49 1 BUSD" );
-   exec(clienta, "wallet_publish_price_feed delegate51 1 BUSD" );
-
-   produce_block(clienta);
-   exec(clienta, "balance" );
-   exec(clientb, "balance" );
-
    exec( clientb, "short delegate30 100 BUSD 2 SPK 1.01" );
    exec( clientb, "short delegate30 75  BUSD 1.5 SPK .99" );
    exec( clientb, "short delegate32 100 BUSD 0.45 SPK " );
@@ -250,9 +253,9 @@ BOOST_FIXTURE_TEST_CASE( basic_commands, chain_fixture )
    elog( "=====================================================================\n" );
    exec(clientb, "blockchain_market_order_book BUSD SPK");
 
-   exec( clienta, "short delegate35 4000 BUSD 30" );
-   exec( clienta, "short delegate37 5000 BUSD 40" );
-   exec( clienta, "short delegate39 4000 BUSD 50" );
+   exec( clienta, "short delegate35 4000 USD 30" );
+   exec( clienta, "short delegate37 5000 USD 40" );
+   exec( clienta, "short delegate39 4000 USD 50" );
 
    exec( clientb, "ask delegate38 5000 SPK .739 BUSD" );
    exec( clientb, "ask delegate40 5000 SPK .74 BUSD" );
@@ -265,8 +268,6 @@ BOOST_FIXTURE_TEST_CASE( basic_commands, chain_fixture )
    exec(clientb, "balance");
    exec(clienta, "blockchain_get_asset BUSD");
    exec(clienta, "blockchain_market_order_book BUSD SPK");
-
-
 
 
    return;
@@ -301,7 +302,7 @@ BOOST_FIXTURE_TEST_CASE( basic_commands, chain_fixture )
    exec(clienta, "wallet_account_transaction_history");
    exec(clienta, "balance");
    exec(clientb, "balance");
-   exec( clientb, "short delegate32 300 .69 BUSD" );
+   exec( clientb, "short delegate32 300 .69 USD" );
    produce_block(clientb);
    exec(clienta, "blockchain_market_order_book BUSD SPK");
    produce_block(clientb);
@@ -614,9 +615,10 @@ BOOST_FIXTURE_TEST_CASE( basic_commands, chain_fixture )
    exec( clienta, "blockchain_market_order_book USD SPK" );
    exec( clienta, "blockchain_market_order_book GLD SPK" );
    exec( clientb, "balance" );
-   exec( clientb, "wallet_asset_create BUSD BitUSD delegate30 \"paper bucks\" null 1000000000 1000 true" );
+   exec( clientb, "wallet_asset_create USD BitUSD delegate30 \"paper bucks\" null 1000000000 1000 true" );
    produce_block( clienta );
    exec( clientb, "wallet_account_transaction_history" );
+<<<<<<< HEAD
    exec( clientb, "short delegate30 3000 5.43 BUSD" );
    exec( clientb, "ask delegate30 400 SPK 5.41 BUSD" );
    exec( clientb, "ask delegate32 800 SPK 4.20 BUSD" );
@@ -624,10 +626,20 @@ BOOST_FIXTURE_TEST_CASE( basic_commands, chain_fixture )
    exec( clienta, "blockchain_market_order_book BUSD SPK" );
    produce_block( clienta );
    exec( clienta, "blockchain_market_order_book BUSD SPK" );
+=======
+   exec( clientb, "short delegate30 3000 5.43 USD" );
+   exec( clientb, "ask delegate30 400 XTS 5.41 USD" );
+   exec( clientb, "ask delegate32 800 XTS 4.20 USD" );
+   produce_block( clienta );
+   exec( clienta, "blockchain_market_order_book USD XTS" );
+   produce_block( clienta );
+   exec( clienta, "blockchain_market_order_book USD XTS" );
+>>>>>>> develop
    exec( clientb, "wallet_account_transaction_history" );
-   exec( clienta, "blockchain_market_list_shorts BUSD" );
-   exec( clientb, "blockchain_market_list_covers BUSD" );
+   exec( clienta, "blockchain_market_list_shorts USD" );
+   exec( clientb, "blockchain_market_list_covers USD" );
    exec( clientb, "balance" );
+<<<<<<< HEAD
    exec( clienta, "wallet_market_order_list BUSD SPK" );
    exec( clientb, "balance" );
    exec( clientb, "ask delegate30 3 SPK 5.42 BUSD" );
@@ -635,9 +647,19 @@ BOOST_FIXTURE_TEST_CASE( basic_commands, chain_fixture )
    exec( clientb, "wallet_account_transaction_history" );
    exec( clientb, "balance" );
    exec( clienta, "blockchain_market_order_book BUSD SPK" );
+=======
+   exec( clienta, "wallet_market_order_list USD XTS" );
    exec( clientb, "balance" );
-   exec( clientb, "short c-account 50 3.11 BUSD" );
+   exec( clientb, "ask delegate30 3 XTS 5.42 USD" );
    produce_block( clienta );
+   exec( clientb, "wallet_account_transaction_history" );
+   exec( clientb, "balance" );
+   exec( clienta, "blockchain_market_order_book USD XTS" );
+>>>>>>> develop
+   exec( clientb, "balance" );
+   exec( clientb, "short c-account 50 3.11 USD" );
+   produce_block( clienta );
+<<<<<<< HEAD
    exec( clienta, "blockchain_market_order_book BUSD SPK" );
    exec( clientb, "balance" );
    exec( clienta, "wallet_market_order_list BUSD SPK" );
@@ -658,6 +680,28 @@ BOOST_FIXTURE_TEST_CASE( basic_commands, chain_fixture )
    produce_block( clienta );
    exec( clientb, "balance" );
    exec( clienta, "blockchain_market_order_book BUSD SPK" );
+=======
+   exec( clienta, "blockchain_market_order_book USD XTS" );
+   exec( clientb, "balance" );
+   exec( clienta, "wallet_market_order_list USD XTS" );
+   produce_block( clienta );
+   exec( clienta, "blockchain_market_order_book USD XTS" );
+   exec( clientb, "balance" );
+   exec( clienta, "wallet_market_order_list USD XTS" );
+   exec( clientb, "balance" );
+   exec( clientb, "wallet_market_order_list USD XTS" );
+   exec( clientb, "balance" );
+   exec( clientb, "cover delegate32 10.1 USD XTSP8ZBZodbzPYh57Z8S4S6x2VqYNXo5MALy" );
+   produce_block( clienta );
+   exec( clientb, "wallet_account_transaction_history" );
+   exec( clientb, "wallet_market_order_list USD XTS" );
+   exec( clienta, "blockchain_market_order_book USD XTS" );
+   exec( clientb, "balance" );
+   exec( clientb, "cover delegate32 19.899 USD XTSP8ZBZodbzPYh57Z8S4S6x2VqYNXo5MALy" );
+   produce_block( clienta );
+   exec( clientb, "balance" );
+   exec( clienta, "blockchain_market_order_book USD XTS" );
+>>>>>>> develop
 
    exec(clientb, "balance");
    exec(clientb, "history");
@@ -684,12 +728,13 @@ BOOST_FIXTURE_TEST_CASE( malicious_trading, chain_fixture )
    exec( clientb, "wallet_delegate_set_block_production delegate32 true" );
    exec( clientb, "wallet_account_create b-account" );
    exec( clientb, "wallet_account_balance b-account" );
-   exec( clientb, "wallet_asset_create BUSD BitUSD delegate30 \"paper bucks\" null 1000000000 1000 true" );
+   exec( clientb, "wallet_asset_create USD BitUSD delegate30 \"paper bucks\" null 1000000000 1000 true" );
    produce_block(clienta);
 
    exec(clienta, "wallet_account_balance");
    exec(clientb, "wallet_account_balance");
 
+<<<<<<< HEAD
    exec(clienta, "ask delegate21 18000000 SPK 1000000 BUSD");
    exec(clientb, "short delegate20 18000000 .001 BUSD");
    exec(clienta, "ask delegate23 18000000 SPK 1000000 BUSD");
@@ -705,10 +750,28 @@ BOOST_FIXTURE_TEST_CASE( malicious_trading, chain_fixture )
 
    exec(clienta, "ask delegate33 100 SPK .001 BUSD");
    exec(clientb, "short delegate32 100000000 1000000000 BUSD");
+=======
+   exec(clienta, "ask delegate21 18000000 XTS 1000000 USD");
+   exec(clientb, "short delegate20 18000000 .001 USD");
+   exec(clienta, "ask delegate23 18000000 XTS 1000000 USD");
+   exec(clientb, "short delegate22 18000000 .001 USD");
+   exec(clienta, "ask delegate25 18000000 XTS 1000000 USD");
+   exec(clientb, "short delegate24 18000000 .001 USD");
+   exec(clienta, "ask delegate27 18000000 XTS 1000000 USD");
+   exec(clientb, "short delegate26 18000000 .001 USD");
+   exec(clienta, "ask delegate29 18000000 XTS 1000000 USD");
+   exec(clientb, "short delegate28 18000000 .001 USD");
+   exec(clienta, "ask delegate31 18000000 XTS 1.05 USD");
+   exec(clientb, "short delegate30 18000000 1 USD");
+
+   exec(clienta, "ask delegate33 100 XTS .001 USD");
+   exec(clientb, "short delegate32 100000000 1000000000 USD");
+>>>>>>> develop
 
    exec(clienta, "wallet_account_balance");
    exec(clientb, "wallet_account_balance");
 
+<<<<<<< HEAD
    exec(clienta, "blockchain_market_order_book BUSD SPK");
    produce_block(clienta);
    exec(clienta, "blockchain_market_order_book BUSD SPK");
@@ -729,6 +792,28 @@ BOOST_FIXTURE_TEST_CASE( malicious_trading, chain_fixture )
    exec(clienta, "blockchain_market_order_book BUSD SPK");
    produce_block(clienta);
    exec(clienta, "blockchain_market_order_book BUSD SPK");
+=======
+   exec(clienta, "blockchain_market_order_book USD XTS");
+   produce_block(clienta);
+   exec(clienta, "blockchain_market_order_book USD XTS");
+   produce_block(clienta);
+   exec(clienta, "blockchain_market_order_book USD XTS");
+   exec(clienta, "wallet_account_balance");
+   exec(clientb, "wallet_account_balance");
+
+   exec(clienta, "bid delegate23 1000000 XTS 5 USD");
+   produce_block(clienta);
+   exec(clienta, "blockchain_market_order_book USD XTS");
+   produce_block(clienta);
+   exec(clienta, "blockchain_market_order_book USD XTS");
+
+   exec(clienta, "ask delegate31 100 XTS 4 USD");
+
+   produce_block(clienta);
+   exec(clienta, "blockchain_market_order_book USD XTS");
+   produce_block(clienta);
+   exec(clienta, "blockchain_market_order_book USD XTS");
+>>>>>>> develop
 
    exec(clientb, "balance");
    exec(clientb, "history");
@@ -738,8 +823,9 @@ BOOST_FIXTURE_TEST_CASE( malicious_trading, chain_fixture )
 
    exec(clientb, "balance delegate32");
    exec(clientb, "history delegate32");
-   exec(clientb, "wallet_publish_price_feed delegate22 .86 BUSD" );
+   exec(clientb, "wallet_publish_price_feed delegate22 .86 USD" );
    produce_block(clienta);
+<<<<<<< HEAD
    exec( clientb, "ask delegate22 3 SPK 0.92 BUSD" );
    exec( clientb, "ask delegate22 4 SPK 0.22 BUSD" );
    exec( clientb, "short delegate22 4 2.0 BUSD" );
@@ -748,6 +834,16 @@ BOOST_FIXTURE_TEST_CASE( malicious_trading, chain_fixture )
    exec(clienta, "blockchain_market_order_book BUSD SPK");
    produce_block(clienta);
    exec(clienta, "blockchain_market_order_book BUSD SPK");
+=======
+   exec( clientb, "ask delegate22 3 XTS 0.92 USD" );
+   exec( clientb, "ask delegate22 4 XTS 0.22 USD" );
+   exec( clientb, "short delegate22 4 2.0 USD" );
+   enable_logging();
+   produce_block(clienta);
+   exec(clienta, "blockchain_market_order_book USD XTS");
+   produce_block(clienta);
+   exec(clienta, "blockchain_market_order_book USD XTS");
+>>>>>>> develop
    exec( clienta, "wallet_account_transaction_history" );
 
 } FC_LOG_AND_RETHROW() }

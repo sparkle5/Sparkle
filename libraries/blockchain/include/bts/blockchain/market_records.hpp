@@ -31,6 +31,23 @@ namespace bts { namespace blockchain {
       }
    };
 
+   struct expiration_index
+   {
+      asset_id_type      quote_id;
+      time_point         expiration;
+      market_index_key   key;
+
+      friend bool operator < ( const expiration_index& a, const expiration_index& b )
+      {
+         return std::tie( a.quote_id, a.expiration, a.key )  < std::tie( b.quote_id, b.expiration, b.key );
+      }
+      friend bool operator == ( const expiration_index& a, const expiration_index& b )
+      {
+         return std::tie( a.quote_id, a.expiration, a.key )  == std::tie( b.quote_id, b.expiration, b.key );
+      }
+
+   };
+
    struct market_history_key
    {
        enum time_granularity_enum {
@@ -134,15 +151,15 @@ namespace bts { namespace blockchain {
 
    struct market_order
    {
+      // bids, asks, rbids, rasks
       market_order( order_type_enum t, market_index_key k, order_record s )
       :type(t),market_index(k),state(s){}
 
-      market_order( order_type_enum t, market_index_key k, order_record s, share_type c )
-      :type(t),market_index(k),state(s),collateral(c){}
-
+      // shorts
       market_order( order_type_enum t, market_index_key k, order_record s, share_type c, price interest )
       :type(t),market_index(k),state(s),collateral(c),interest_rate(interest){}
 
+      // covers
       market_order( order_type_enum t, market_index_key k, order_record s, share_type c, price interest, time_point_sec exp )
       :type(t),market_index(k),state(s),collateral(c),interest_rate(interest),expiration(exp){}
 
@@ -153,8 +170,8 @@ namespace bts { namespace blockchain {
       asset         get_balance()const; // funds available for this order
       price         get_price( const price& base = price() )const;
       price         get_highest_cover_price()const; // the price that consumes all collateral
-      asset         get_quantity()const;
-      asset         get_quote_quantity()const;
+      asset         get_quantity( const price& base = price() )const;
+      asset         get_quote_quantity( const price& base = price() )const;
       address       get_owner()const { return market_index.owner; }
 
       fc::enum_type<uint8_t, order_type_enum>   type = null_order;
@@ -246,14 +263,14 @@ namespace bts { namespace blockchain {
 
 } } // bts::blockchain
 
-FC_REFLECT_ENUM( bts::blockchain::order_type_enum, 
+FC_REFLECT_ENUM( bts::blockchain::order_type_enum,
                  (null_order)
                  (bid_order)
                  (ask_order)
                  (short_order)
                  (cover_order)
                  (relative_bid_order)
-                 (relative_ask_order) 
+                 (relative_ask_order)
                )
 
 FC_REFLECT_ENUM( bts::blockchain::market_history_key::time_granularity_enum, (each_block)(each_hour)(each_day) )

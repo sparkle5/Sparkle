@@ -607,13 +607,8 @@ void client_impl::delegate_loop()
                sent = true;
                on_new_block( result, result.id(), false );
 
-#ifndef DISABLE_DELEGATE_NETWORK
-               _delegate_network.broadcast_block( result );
-               // broadcast block to delegates first, starting with the next delegate
-#endif
-
-               _p2p_node->broadcast( block_message( result ) );
-               ilog( "Produced block #${n}!", ("n",result.block_num) );
+               _p2p_node->broadcast( block_message( next_block ) );
+               ilog( "Produced block #${n}!", ("n",next_block.block_num) );
             }
          }
       }
@@ -818,7 +813,11 @@ bool client_impl::has_item(const bts::net::item_id& id)
 
    if (id.item_type == trx_message_type)
    {
-      return _chain_db->is_known_transaction( id.item_hash );
+      //return _chain_db->is_known_transaction( id.item_hash );
+      // TODO: the performance of get_transaction is much slower than is_known_transaction,
+      // but we do not have enough information to call is_known_transaction because it depends 
+      // upon the transaction digest + expiration date and we only have the trx id.
+      return _chain_db->get_transaction( id.item_hash ).valid();
    }
    return false;
 }
@@ -1224,30 +1223,6 @@ void client::open( const path& data_dir, fc::optional<fc::path> genesis_file_pat
 { try {
       my->_config = load_config( data_dir, my->_enable_ulog );
 
-#ifndef DISABLE_DELEGATE_NETWORK
-      /*
-         *  Don't delete me, I promise I will be used soon
-         *
-         *  TODO: this creates a memory leak / circular reference between client and
-         *  delegate network.
-        */
-      my->_delegate_network.set_client( shared_from_this() );
-      my->_delegate_network.listen( my->_config.delegate_server );
-
-      for( auto delegate_host : my->_config.default_delegate_peers )
-      {
-         try {
-            wlog( "connecting to delegate peer ${p}", ("p",delegate_host) );
-            my->_delegate_network.connect_to( fc::ip::endpoint::from_string(delegate_host) );
-         }
-         catch ( const fc::exception& e )
-         {
-            wlog( "${e}", ("e", e.to_detail_string() ) );
-         }
-
-      }
-#endif
-
       //std::cout << fc::json::to_pretty_string( cfg ) <<"\n";
       fc::configure_logging( my->_config.logging );
       // re-register the _user_appender which was overwritten by configure_logging()
@@ -1271,6 +1246,8 @@ void client::open( const path& data_dir, fc::optional<fc::path> genesis_file_pat
       bool attempt_to_recover_database = false;
       try
       {
+         ulog( "Tracking Statistics: ${s}", ("s",my->_config.track_statistics ) );
+         my->_chain_db->track_chain_statistics( my->_config.track_statistics );
          my->_chain_db->open( data_dir / "chain", genesis_file_path, reindex_status_callback );
       }
       catch( const db::db_in_use_exception& e )
@@ -1345,16 +1322,16 @@ fc::variant_object version_info()
 #endif
 
    fc::mutable_variant_object info;
-   info["blockchain_name"]                   = BTS_BLOCKCHAIN_NAME;
-   info["blockchain_description"]            = BTS_BLOCKCHAIN_DESCRIPTION;
-   info["client_version"]                    = client_version;
-   info["bitshares_toolkit_revision"]        = bts::utilities::git_revision_sha;
-   info["bitshares_toolkit_revision_age"]    = fc::get_approximate_relative_time_string( fc::time_point_sec( bts::utilities::git_revision_unix_timestamp ) );
-   info["fc_revision"]                       = fc::git_revision_sha;
-   info["fc_revision_age"]                   = fc::get_approximate_relative_time_string( fc::time_point_sec( fc::git_revision_unix_timestamp ) );
-   info["compile_date"]                      = "compiled on " __DATE__ " at " __TIME__;
-   info["boost_version"]                     = boost::replace_all_copy(std::string(BOOST_LIB_VERSION), "_", ".");
-   info["openssl_version"]                   = OPENSSL_VERSION_TEXT;
+   info["blockchain_name"]          = BTS_BLOCKCHAIN_NAME;
+   info["blockchain_description"]   = BTS_BLOCKCHAIN_DESCRIPTION;
+   info["client_version"]           = client_version;
+   info["bitshares_revision"]       = bts::utilities::git_revision_sha;
+   info["bitshares_revision_age"]   = fc::get_approximate_relative_time_string( fc::time_point_sec( bts::utilities::git_revision_unix_timestamp ) );
+   info["fc_revision"]              = fc::git_revision_sha;
+   info["fc_revision_age"]          = fc::get_approximate_relative_time_string( fc::time_point_sec( fc::git_revision_unix_timestamp ) );
+   info["compile_date"]             = "compiled on " __DATE__ " at " __TIME__;
+   info["boost_version"]            = boost::replace_all_copy(std::string(BOOST_LIB_VERSION), "_", ".");
+   info["openssl_version"]          = OPENSSL_VERSION_TEXT;
 
    std::string bitness = boost::lexical_cast<std::string>(8 * sizeof(int*)) + "-bit";
 #if defined(__APPLE__)
@@ -1626,6 +1603,7 @@ void client::configure_from_command_line(int argc, char** argv)
                                           my->_config.chain_server.listen_port));
       ulog("Starting a chain server on port ${port}", ("port", my->_chain_server->get_listening_port()));
    }
+   my->_chain_db->set_relay_fee( my->_config.relay_fee * BTS_BLOCKCHAIN_PRECISION );
 } //configure_from_command_line
 
 fc::future<void> client::start()
@@ -1760,7 +1738,7 @@ void client::connect_to_peer(const string& remote_endpoint)
    try
    {
       ulog("Attempting to connect to peer ${peer}", ("peer", endpoint));
-      my->_p2p_node->connect_to(endpoint);
+      my->_p2p_node->connect_to_endpoint(endpoint);
    }
    catch (const bts::net::already_connected_to_requested_peer&)
    {
@@ -1814,6 +1792,11 @@ void client_notification::sign(const fc::ecc::private_key& key)
 fc::ecc::public_key client_notification::signee() const
 {
    return fc::ecc::public_key(signature, digest());
+}
+
+void client::set_client_debug_name(const string& name)
+{
+   return my->set_client_debug_name(name);
 }
 
 /**

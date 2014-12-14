@@ -24,6 +24,12 @@ namespace bts { namespace blockchain {
        int64_t          difficulty()const;
        address          miner()const;
        signature_type   signature;
+
+       bool             validate_signee( const fc::ecc::public_key& expected_signee, bool enforce_canonical = false )const;
+       public_key_type  signee( bool enforce_canonical = false )const;
+       void             sign( const fc::ecc::private_key& signer );
+
+       signature_type delegate_signature;
    };
 
    struct digest_block : public signed_block_header

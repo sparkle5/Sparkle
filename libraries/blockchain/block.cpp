@@ -12,7 +12,7 @@ namespace bts { namespace blockchain {
 
    address       signed_block_header::miner()const
    {
-      return address(fc::ecc::public_key(signature, digest()));
+      return address(fc::ecc::public_key(signature, digest(),false/*don't enforce canoncal*/));
    }
    block_id_type signed_block_header::id()const
    {
@@ -20,6 +20,17 @@ namespace bts { namespace blockchain {
       fc::raw::pack( enc, *this );
       return fc::ripemd160::hash( enc.result() );
    }
+
+
+   public_key_type signed_block_header::signee( bool enforce_canonical )const
+   { 
+      return fc::ecc::public_key( delegate_signature, digest(), enforce_canonical );
+   }
+
+   void signed_block_header::sign( const fc::ecc::private_key& signer )
+   { try {
+      delegate_signature = signer.sign_compact( digest() );
+   } FC_RETHROW_EXCEPTIONS( warn, "" ) }
 
    size_t full_block::block_size()const
    {

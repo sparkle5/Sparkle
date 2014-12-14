@@ -379,10 +379,11 @@ string pretty_block_list( const vector<block_record>& block_records, cptr client
     out << std::setw(  8 ) << "# TXS";
     out << std::setw(  8 ) << "SIZE";
     out << std::setw(  8 ) << "LATENCY";
-    out << std::setw( 15 ) << "PROCESSING TIME";
+    out << std::setw( 17 ) << "PROCESSING TIME";
+    out << std::setw( 15 ) << "RAND";
     out << "\n";
 
-    out << pretty_line( 99 );
+    out << pretty_line( 116 );
     out << "\n";
 
     auto last_block_timestamp = block_records.front().timestamp;
@@ -405,12 +406,14 @@ string pretty_block_list( const vector<block_record>& block_records, cptr client
         if( FILTER_OUTPUT_FOR_TESTS )
         {
             out << std::setw(  8 ) << "<d-ign>" << block_record.latency.to_seconds() << "</d-ign>";
-            out << std::setw( 15 ) << "<d-ign>" << block_record.processing_time.count() / double(1000000) << "</d-ign>";
+            out << std::setw( 17 ) << "<d-ign>" << block_record.processing_time.count() / double(1000000) << "</d-ign>";
+            out << std::setw( 15 ) << "<d-ign>" << std::string(block_record.random_seed) << "</d-ign>";
         }
         else
         {
             out << std::setw(  8 ) << block_record.latency.to_seconds();
-            out << std::setw( 15 ) << block_record.processing_time.count() / double( 1000000 );
+            out << std::setw( 17 ) << block_record.processing_time.count() / double( 1000000 );
+            out << std::setw( 15 ) << std::string(block_record.random_seed);
         }
 
         out << '\n';
@@ -722,7 +725,7 @@ string pretty_asset_list( const vector<asset_record>& asset_records, cptr client
             out << std::setw( 32 ) << "GENESIS";
             out << std::setw( 10 ) << "N/A";
         }
-        else if( issuer_id == asset_record::market_issued_asset )
+        else if( asset_record.is_market_issued() )
         {
             out << std::setw( 32 ) << "MARKET";
             out << std::setw( 10 ) << "N/A";
@@ -867,7 +870,7 @@ string pretty_order_list( const vector<std::pair<order_id_type, market_order>>& 
     std::stringstream out;
     out << std::left;
 
-    out << std::setw( 12 ) << "TYPE";
+    out << std::setw( 20 ) << "TYPE";
     out << std::setw( 20 ) << "QUANTITY";
     out << std::setw( 30 ) << "PRICE";
     out << std::setw( 20 ) << "BALANCE";
@@ -879,16 +882,25 @@ string pretty_order_list( const vector<std::pair<order_id_type, market_order>>& 
     out << pretty_line( 162 );
     out << "\n";
 
+    price feed_price;
+    {
+        const asset_id_type quote_id = order_items.front().second.market_index.order_price.quote_asset_id;
+        const asset_id_type base_id = order_items.front().second.market_index.order_price.base_asset_id;
+        const omarket_status status = client->get_chain()->get_market_status( quote_id, base_id );
+        if( status.valid() && status->last_valid_feed_price.valid() )
+            feed_price = *status->last_valid_feed_price;
+    }
+
     for( const auto& item : order_items )
     {
         const auto id = item.first;
         const auto order = item.second;
 
-        out << std::setw( 12 ) << variant( order.type ).as_string();
-        out << std::setw( 20 ) << client->get_chain()->to_pretty_asset( order.get_quantity() );
-        out << std::setw( 30 ) << client->get_chain()->to_pretty_price( order.get_price() );
+        out << std::setw( 20 ) << variant( order.type ).as_string();
+        out << std::setw( 20 ) << client->get_chain()->to_pretty_asset( order.get_quantity( feed_price ) );
+        out << std::setw( 30 ) << client->get_chain()->to_pretty_price( order.get_price( feed_price ) );
         out << std::setw( 20 ) << client->get_chain()->to_pretty_asset( order.get_balance() );
-        out << std::setw( 20 ) << client->get_chain()->to_pretty_asset( order.get_quantity() * order.get_price() );
+        out << std::setw( 20 ) << client->get_chain()->to_pretty_asset( order.get_quantity( feed_price ) * order.get_price( feed_price ) );
         if( order.type != cover_order )
            out << std::setw( 20 ) << "N/A";
         else

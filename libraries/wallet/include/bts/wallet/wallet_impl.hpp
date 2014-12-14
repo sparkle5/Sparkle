@@ -85,8 +85,6 @@ class wallet_impl : public chain_observer
               bool overwrite_existing = false
               );
 
-      void scan_genesis_experimental( const account_balance_record_summary_type& account_balances );
-
       void scan_block_experimental( uint32_t block_num,
                                     const map<private_key_type, string>& account_keys,
                                     const map<address, string>& account_balances,
@@ -230,12 +228,14 @@ class wallet_impl : public chain_observer
                              entry.memo = status->get_message();
                              trx_rec.ledger_entries.push_back( entry );
                          }
-
-                         key_data data;
-                         data.account_address = status->from;
-                         wdump( (status->from)(deposit.memo->one_time_key) );
-                         data.public_key      = deposit.memo->one_time_key;
-                         _wallet_db.store_key( data );
+                         auto current_key = _wallet_db.lookup_key( deposit.memo->one_time_key );
+                         if( !current_key )
+                         {
+                            key_data data;
+                            data.account_address = status->from;
+                            data.public_key      = deposit.memo->one_time_key;
+                            _wallet_db.store_key( data );
+                         }
                       }
                       else // to_memo
                       {

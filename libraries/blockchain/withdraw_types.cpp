@@ -4,14 +4,15 @@
 #include <fc/crypto/aes.hpp>
 #include <fc/reflect/variant.hpp>
 
+#include <boost/algorithm/string.hpp>
+
 namespace bts { namespace blockchain {
 
    const uint8_t withdraw_with_signature::type    = withdraw_signature_type;
-   const uint8_t withdraw_with_multi_sig::type    = withdraw_multi_sig_type;
-   const uint8_t withdraw_with_password::type     = withdraw_password_type;
-   const uint8_t withdraw_option::type            = withdraw_option_type;
-   const uint8_t withdraw_with_escrow::type       = withdraw_escrow_type;
    const uint8_t withdraw_vesting::type           = withdraw_vesting_type;
+   const uint8_t withdraw_with_multisig::type     = withdraw_multisig_type;
+   const uint8_t withdraw_with_escrow::type       = withdraw_escrow_type;
+   const uint8_t withdraw_with_password::type     = withdraw_password_type;
 
    memo_status::memo_status( const memo_data& memo,
                    bool valid_signature,
@@ -37,7 +38,16 @@ namespace bts { namespace blockchain {
       return address( *this );
    }
 
-   omemo_status withdraw_with_signature::decrypt_memo_data( const fc::ecc::private_key& receiver_key )const
+   string withdraw_condition::type_label()const
+   {
+      string label = string( this->type );
+      label = label.substr( 9 );
+      label = label.substr( 0, label.find( "_" ) );
+      boost::to_upper( label );
+      return label;
+   }
+
+   omemo_status withdraw_with_signature::decrypt_memo_data( const fc::ecc::private_key& receiver_key, bool ignore_owner )const
    { try {
       try {
          FC_ASSERT( memo.valid() );
@@ -48,9 +58,8 @@ namespace bts { namespace blockchain {
                                                                            extended_private_key::public_derivation );
          auto secret_public_key = secret_private_key.get_public_key();
 
-         // allow memos to be sent so long as we can decrypt the data.
-         //if( owner != address(secret_public_key) )
-         //   return omemo_status();
+         if( !ignore_owner && owner != address( secret_public_key ) )
+            return omemo_status();
 
          auto memo = decrypt_memo_data( secret );
 
@@ -66,12 +75,12 @@ namespace bts { namespace blockchain {
          }
 
          return memo_status( memo, has_valid_signature, secret_private_key );
-      } 
+      }
       catch ( const fc::aes_exception& e )
       {
          return omemo_status();
       }
-   } FC_RETHROW_EXCEPTIONS( warn, "" ) }
+   } FC_CAPTURE_AND_RETHROW( (ignore_owner) ) }
 
    public_key_type withdraw_with_signature::encrypt_memo_data(
            const fc::ecc::private_key& one_time_private_key,
@@ -117,12 +126,6 @@ namespace bts { namespace blockchain {
       memo->encrypted_memo_data = fc::aes_encrypt( secret, fc::raw::pack( memo_content ) );
    }
 
-
-
-
-
-
-
    omemo_status withdraw_with_escrow::decrypt_memo_data( const fc::ecc::private_key& receiver_key )const
    { try {
        try {
@@ -151,7 +154,7 @@ namespace bts { namespace blockchain {
          }
 
          return memo_status( memo, has_valid_signature, secret_private_key );
-      } 
+      }
       catch ( const fc::aes_exception& e )
       {
          return omemo_status();
@@ -204,11 +207,6 @@ namespace bts { namespace blockchain {
       memo->encrypted_memo_data = fc::aes_encrypt( secret, fc::raw::pack( memo_content ) );
    }
 
-
-
-
-
-
 } } // bts::blockchain
 
 namespace fc {
@@ -217,32 +215,32 @@ namespace fc {
       using namespace bts::blockchain;
       fc::mutable_variant_object obj;
       obj["asset_id"] = var.asset_id;
-      obj["delegate_slate_id"] = var.delegate_slate_id;
+      obj["slate_id"] = var.slate_id;
       obj["type"] =  var.type;
 
       switch( (withdraw_condition_types) var.type )
       {
+         case withdraw_null_type:
+            obj["data"] = fc::variant();
+            break;
          case withdraw_signature_type:
             obj["data"] = fc::raw::unpack<withdraw_with_signature>( var.data );
-            break;
-         case withdraw_multi_sig_type:
-            obj["data"] = fc::raw::unpack<withdraw_with_multi_sig>( var.data );
-            break;
-         case withdraw_password_type:
-            obj["data"] = fc::raw::unpack<withdraw_with_password>( var.data );
-            break;
-         case withdraw_option_type:
-            obj["data"] = fc::raw::unpack<withdraw_option>( var.data );
-            break;
-         case withdraw_escrow_type:
-            obj["data"] = fc::raw::unpack<withdraw_with_escrow>( var.data );
             break;
          case withdraw_vesting_type:
             obj["data"] = fc::raw::unpack<withdraw_vesting>( var.data );
             break;
-         case withdraw_null_type:
-            obj["data"] = fc::variant();
+         case withdraw_multisig_type:
+            obj["data"] = fc::raw::unpack<withdraw_with_multisig>( var.data );
             break;
+         case withdraw_password_type:
+            obj["data"] = fc::raw::unpack<withdraw_with_password>( var.data );
+            break;
+         case withdraw_reserved_type:
+            break;
+         case withdraw_escrow_type:
+            obj["data"] = fc::raw::unpack<withdraw_with_escrow>( var.data );
+            break;
+         // No default to force compiler warning
       }
       vo = std::move( obj );
    }
@@ -252,32 +250,33 @@ namespace fc {
       using namespace bts::blockchain;
       auto obj = var.get_object();
       from_variant( obj["asset_id"], vo.asset_id );
-      from_variant( obj["delegate_slate_id"], vo.delegate_slate_id );
+      from_variant( obj["slate_id"], vo.slate_id );
       from_variant( obj["type"], vo.type );
 
       switch( (withdraw_condition_types) vo.type )
       {
+         case withdraw_null_type:
+            return;
          case withdraw_signature_type:
             vo.data = fc::raw::pack( obj["data"].as<withdraw_with_signature>() );
-            break;
-         case withdraw_multi_sig_type:
-            vo.data = fc::raw::pack( obj["data"].as<withdraw_with_multi_sig>() );
-            break;
-         case withdraw_password_type:
-            vo.data = fc::raw::pack( obj["data"].as<withdraw_with_password>() );
-            break;
-         case withdraw_option_type:
-            vo.data = fc::raw::pack( obj["data"].as<withdraw_option>() );
-            break;
-         case withdraw_escrow_type:
-            vo.data = fc::raw::pack( obj["data"].as<withdraw_with_escrow>() );
-            break;
+            return;
          case withdraw_vesting_type:
             vo.data = fc::raw::pack( obj["data"].as<withdraw_vesting>() );
-            break;
-         case withdraw_null_type:
-            break;
+            return;
+         case withdraw_multisig_type:
+            vo.data = fc::raw::pack( obj["data"].as<withdraw_with_multisig>() );
+            return;
+         case withdraw_password_type:
+            vo.data = fc::raw::pack( obj["data"].as<withdraw_with_password>() );
+            return;
+         case withdraw_reserved_type:
+            return;
+         case withdraw_escrow_type:
+            vo.data = fc::raw::pack( obj["data"].as<withdraw_with_escrow>() );
+            return;
+         // No default to force compiler warning
       }
+      FC_ASSERT( !"Invalid withdraw condition!" );
    }
 
    void to_variant( const bts::blockchain::memo_data& var,  variant& vo )

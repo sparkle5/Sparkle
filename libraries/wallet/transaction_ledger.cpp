@@ -257,28 +257,55 @@ void wallet_impl::scan_registered_accounts()
 {
    _blockchain->scan_accounts( [&]( const blockchain::account_record& scanned_account_record )
    {
-        // TODO: check owner key as well!
-        auto key_rec =_wallet_db.lookup_key( scanned_account_record.active_key() );
-        if( key_rec.valid() && key_rec->has_private_key() )
+        const auto account_record = _wallet_db.lookup_account( scanned_account_record.name );
+        if( account_record.valid() )
         {
-           auto existing_account_record = _wallet_db.lookup_account( key_rec->account_address );
-           if( existing_account_record.valid() )
-              _wallet_db.store_account( scanned_account_record );
+            _wallet_db.store_account( scanned_account_record );
+            return;
         }
+
+        auto key_record = _wallet_db.lookup_key( scanned_account_record.owner_address() );
+        if( !key_record.valid() || !key_record->has_private_key() )
+        {
+            key_record = _wallet_db.lookup_key( scanned_account_record.active_address() );
+            if( !key_record.valid() || !key_record->has_private_key() )
+            {
+                if( scanned_account_record.is_delegate() )
+                    key_record = _wallet_db.lookup_key( scanned_account_record.signing_address() );
+            }
+        }
+
+        if( key_record.valid() && key_record->has_private_key() )
+            _wallet_db.store_account( scanned_account_record );
    } );
-   ilog( "account scan complete" );
 }
 
 void wallet_impl::scan_block( uint32_t block_num, const vector<private_key_type>& keys, const time_point_sec& received_time )
-{
-   const auto block = _blockchain->get_block( block_num );
-   for( const auto& transaction : block.user_transactions )
-      scan_transaction( transaction, block_num, block.timestamp, keys, received_time );
+{ try {
+    const full_block& block = _blockchain->get_block( block_num );
+    for( const signed_transaction& transaction : block.user_transactions )
+    {
+        try
+        {
+            scan_transaction( transaction, block_num, block.timestamp, keys, received_time );
+        }
+        catch( ... )
+        {
+        }
+    }
 
-   const auto market_trxs = _blockchain->get_market_transactions( block_num );
-   for( const auto& market_trx : market_trxs )
-      scan_market_transaction( market_trx, block_num, block.timestamp, received_time );
-}
+    const vector<market_transaction>& market_trxs = _blockchain->get_market_transactions( block_num );
+    for( const market_transaction& market_trx : market_trxs )
+    {
+        try
+        {
+            scan_market_transaction( market_trx, block_num, block.timestamp, received_time );
+        }
+        catch( ... )
+        {
+        }
+    }
+} FC_CAPTURE_AND_RETHROW( (block_num)(received_time) ) }
 
 wallet_transaction_record wallet_impl::scan_transaction(
         const signed_transaction& transaction,
@@ -288,8 +315,8 @@ wallet_transaction_record wallet_impl::scan_transaction(
         const time_point_sec& received_time,
         bool overwrite_existing )
 { try {
-    const transaction_id_type record_id = transaction.permanent_id();
     const transaction_id_type transaction_id = transaction.id();
+    const transaction_id_type& record_id = transaction_id;
     auto transaction_record = _wallet_db.lookup_transaction( record_id );
     const auto already_exists = transaction_record.valid();
     if( !already_exists )
@@ -719,7 +746,7 @@ bool wallet_impl::scan_update_account( const update_account_operation& op, walle
 
 bool wallet_impl::scan_create_asset( const create_asset_operation& op, wallet_transaction_record& trx_rec )
 {
-   if( op.issuer_account_id != asset_record::market_issued_asset )
+   if( op.issuer_account_id != asset_record::market_issuer_id )
    {
       auto oissuer = _blockchain->get_account_record( op.issuer_account_id );
       FC_ASSERT( oissuer.valid() );
@@ -1113,7 +1140,8 @@ bool wallet_impl::scan_deposit( const deposit_operation& op, const vector<privat
                    omemo_status status;
                    _scanner_threads[ i % _num_scanner_threads ]->async( [&]()
                        { status =  deposit.decrypt_memo_data( key ); }, "decrypt memo" ).wait();
-                   if( status.valid() ) /* If I've successfully decrypted then it's for me */
+                   /* If I've successfully decrypted then it's for me */
+                   if( status.valid() )
                    {
                       cache_deposit = true;
                       _wallet_db.cache_memo( *status, key, _wallet_password );
@@ -1222,24 +1250,8 @@ bool wallet_impl::scan_deposit( const deposit_operation& op, const vector<privat
           }
           break;
        }
-       case withdraw_multi_sig_type:
-       {
-          // TODO: FC_THROW( "withdraw_multi_sig_type not implemented!" );
-          break;
-       }
-       case withdraw_password_type:
-       {
-          // TODO: FC_THROW( "withdraw_password_type not implemented!" );
-          break;
-       }
-       case withdraw_option_type:
-       {
-          // TODO: FC_THROW( "withdraw_option_type not implemented!" );
-          break;
-       }
        default:
        {
-          FC_THROW( "unknown withdraw condition type!" );
           break;
        }
   }
@@ -1300,7 +1312,7 @@ void wallet::cache_transaction( wallet_transaction_record& transaction_record )
 { try {
    my->_blockchain->store_pending_transaction( transaction_record.trx, true );
 
-   transaction_record.record_id = transaction_record.trx.permanent_id();
+   transaction_record.record_id = transaction_record.trx.id();
    transaction_record.created_time = blockchain::now();
    transaction_record.received_time = transaction_record.created_time;
    my->_wallet_db.store_transaction( transaction_record );
@@ -1563,7 +1575,13 @@ pretty_transaction wallet::to_pretty_trx( const wallet_transaction_record& trx_r
           }
        }
        else if( entry.memo.find( "burn" ) == 0 )
+       {
           pretty_entry.to_account = "NETWORK";
+       }
+       else if( entry.memo.find( "collect vested" ) == 0 )
+       {
+          pretty_entry.from_account = "SHAREDROP";
+       }
 
        /* I'm sorry - Vikram */
        /* You better be. - Dan */

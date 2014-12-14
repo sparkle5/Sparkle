@@ -2,6 +2,8 @@ if( UNIX AND NOT APPLE )
   set(rt_library rt )
 endif()
 
+add_definitions( -DBTS_GLOBAL_API_LOG=1 )
+
 file(GLOB regression_tests_common_logs_files "${CMAKE_CURRENT_SOURCE_DIR}/regression_tests/_common_logs/*.log")
 source_group("Regression Tests\\Common Logs" FILES ${regression_tests_common_logs_files})
 
@@ -47,8 +49,8 @@ set(regression_test_files ${regression_tests_common_logs_files}
                           ${regression_tests_wallet_asset_test_files}
                           ${regression_tests_dev_test_files})
 
-add_executable( dev_tests dev_tests.cpp )
-target_link_libraries( dev_tests bts_client bts_cli bts_wallet bts_blockchain bts_net bts_utilities deterministic_openssl_rand bitcoin fc )
+#add_executable( dev_tests dev_tests.cpp )
+#target_link_libraries( dev_tests bts_client bts_cli bts_wallet bts_blockchain bts_net bts_utilities deterministic_openssl_rand bitcoin fc )
 
 
 #add_executable( server_node server_node.cpp )

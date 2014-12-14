@@ -1,5 +1,7 @@
+#include <bts/blockchain/exceptions.hpp>
 #include <bts/blockchain/market_engine.hpp>
 #include <fc/real128.hpp>
+#include <algorithm>
 
 namespace bts { namespace blockchain { namespace detail {
 
@@ -39,7 +41,10 @@ namespace bts { namespace blockchain { namespace detail {
 
           oasset_record quote_asset = _pending_state->get_asset_record( _quote_id );
           oasset_record base_asset = _pending_state->get_asset_record( _base_id );
+
           FC_ASSERT( quote_asset.valid() && base_asset.valid() );
+          FC_ASSERT( !quote_asset->is_market_frozen() );
+          FC_ASSERT( !base_asset->is_market_frozen() );
 
           // The order book is sorted from low to high price. So to get the last item (highest bid),
           // we need to go to the first item in the next market class and then back up one
@@ -51,12 +56,14 @@ namespace bts { namespace blockchain { namespace detail {
           _short_itr         = _db_impl._short_db.lower_bound( market_index_key( next_pair ) );
           _collateral_itr    = _db_impl._collateral_db.lower_bound( market_index_key( next_pair ) );
 
+          _collateral_expiration_itr  = _db_impl._collateral_expiration_index.lower_bound( { quote_id, time_point(), market_index_key( price(0,quote_id,base_id) ) } );
+
           int last_orders_filled = -1;
           asset trading_volume(0, base_id);
           price opening_price, closing_price;
 
-          if( !_ask_itr.valid() ) _ask_itr = _db_impl._ask_db.begin(); 
-          if( !_relative_ask_itr.valid() ) _relative_ask_itr = _db_impl._relative_ask_db.begin(); 
+          if( !_ask_itr.valid() ) _ask_itr = _db_impl._ask_db.begin();
+          if( !_relative_ask_itr.valid() ) _relative_ask_itr = _db_impl._relative_ask_db.begin();
 
           if( _bid_itr.valid() )   --_bid_itr;
           else _bid_itr = _db_impl._bid_db.last();
@@ -71,8 +78,9 @@ namespace bts { namespace blockchain { namespace detail {
           else _short_itr = _db_impl._short_db.last();
 
           _feed_price = _db_impl.self->get_median_delegate_price( _quote_id, _base_id );
-          // Market issued assets cannot match until the first time there is a median feed
-          if( quote_asset->is_market_issued() && !base_asset->is_market_issued() )
+
+          // Market issued assets cannot match until the first time there is a median feed; assume feed price base id 0
+          if( quote_asset->is_market_issued() && base_asset->id == asset_id_type( 0 ) )
           {
               const omarket_status market_stat = _pending_state->get_market_status( _quote_id, _base_id );
               if( (!market_stat.valid() || !market_stat->last_valid_feed_price.valid()) && !_feed_price.valid() )
@@ -204,7 +212,7 @@ namespace bts { namespace blockchain { namespace detail {
                 pay_current_short( mtrx, *quote_asset, *base_asset );
                 pay_current_cover( mtrx, *quote_asset );
             }
-            else if( (_current_bid->type == bid_order || _current_bid->type == relative_bid_order) && 
+            else if( (_current_bid->type == bid_order || _current_bid->type == relative_bid_order) &&
                      _current_ask->type == cover_order )
             {
                 const asset cover_collateral          = asset( *_current_ask->collateral, _base_id );
@@ -229,7 +237,7 @@ namespace bts { namespace blockchain { namespace detail {
                 pay_current_bid( mtrx, *quote_asset );
                 pay_current_cover( mtrx, *quote_asset );
             }
-            else if( (_current_ask->type == ask_order || _current_ask->type == relative_bid_order) && 
+            else if( (_current_ask->type == ask_order || _current_ask->type == relative_bid_order) &&
                      _current_bid->type == short_order )
             {
                 // Bound collateral ratio (maximizes collateral of new margin position)
@@ -259,7 +267,7 @@ namespace bts { namespace blockchain { namespace detail {
                 pay_current_short( mtrx, *quote_asset, *base_asset );
                 pay_current_ask( mtrx, *quote_asset );
             }
-            else if( (_current_ask->type == ask_order || _current_ask->type == relative_ask_order) && 
+            else if( (_current_ask->type == ask_order || _current_ask->type == relative_ask_order) &&
                      (_current_bid->type == bid_order || _current_bid->type == relative_bid_order ) )
             {
                 const asset bid_quantity_xts = _current_bid->get_quantity();
@@ -633,7 +641,7 @@ namespace bts { namespace blockchain { namespace detail {
       if( _bid_itr.valid() )
       {
          market_order abs_bid( bid_order, _bid_itr.key(), _bid_itr.value() );
-         if( abs_bid.get_price().quote_asset_id == _quote_id && abs_bid.get_price().base_asset_id == _base_id ) 
+         if( abs_bid.get_price().quote_asset_id == _quote_id && abs_bid.get_price().base_asset_id == _base_id )
          {
             if( bid )
             {
@@ -693,19 +701,52 @@ namespace bts { namespace blockchain { namespace detail {
         {
             _current_collat_record = _collateral_itr.value();
             // Don't cover unless the price is below the feed price or margin position is expired
-            if( (_feed_price.valid() && cover_ask.get_price() > *_feed_price)
-                || _current_collat_record.expiration <= _pending_state->now() )
+            if( (_feed_price.valid() && cover_ask.get_price() > *_feed_price) )
             {
                 _current_ask = cover_ask;
                 --_collateral_itr;
                 return _current_ask.valid();
             }
             --_collateral_itr;
-            continue;
+            break;
         }
         _collateral_itr.reset();
         break;
       }
+
+      /**
+       *  Process expired collateral positions.
+       */
+      while( _collateral_expiration_itr != _db_impl._collateral_expiration_index.end() )
+      {
+         if( _collateral_expiration_itr->quote_id != _quote_id )
+            break;
+
+         if( _collateral_expiration_itr->expiration > fc::time_point(_pending_state->now()) )
+            break;
+
+         auto val = _db_impl._collateral_db.fetch( _collateral_expiration_itr->key );
+         const auto cover_ask = market_order( cover_order,
+                                                _collateral_expiration_itr->key,
+                                                order_record(val.payoff_balance),
+                                                val.collateral_balance,
+                                                val.interest_rate,
+                                                val.expiration);
+
+         ++_collateral_expiration_itr;
+
+         // if we have a feed price and margin was called above then don't process it
+         if( !(_feed_price.valid() && cover_ask.get_price() > *_feed_price) )
+         {
+            _current_ask = cover_ask;
+            return true;
+         } // else continue to next item
+      }
+
+
+      /**
+       *  Expired margin positions take second priority based upon age
+       */
 
       if( _ask_itr.valid() )
       {

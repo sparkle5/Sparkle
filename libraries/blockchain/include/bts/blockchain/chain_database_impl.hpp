@@ -1,30 +1,8 @@
 #pragma once
-//#define DEFAULT_LOGGER "blockchain"
 
 #include <bts/blockchain/chain_database.hpp>
-#include <bts/blockchain/checkpoints.hpp>
-#include <bts/blockchain/config.hpp>
-#include <bts/blockchain/genesis_config.hpp>
-#include <bts/blockchain/genesis_json.hpp>
-#include <bts/blockchain/market_records.hpp>
-#include <bts/blockchain/operation_factory.hpp>
-#include <bts/blockchain/time.hpp>
-
 #include <bts/db/cached_level_map.hpp>
-#include <bts/db/level_map.hpp>
-
-#include <fc/io/fstream.hpp>
-#include <fc/io/json.hpp>
-#include <fc/io/raw_variant.hpp>
 #include <fc/thread/mutex.hpp>
-#include <fc/thread/non_preemptable_scope_check.hpp>
-#include <fc/thread/unique_lock.hpp>
-
-#include <algorithm>
-#include <deque>
-#include <fstream>
-#include <iomanip>
-#include <iostream>
 
 namespace bts { namespace blockchain {
 
@@ -68,6 +46,8 @@ namespace bts { namespace blockchain {
       {
          public:
             void                                        open_database(const fc::path& data_dir );
+            void                                        clear_invalidation_of_future_blocks();
+
             digest_type                                 initialize_genesis( const optional<path>& genesis_file, bool chain_id_only = false );
 
             std::pair<block_id_type, block_fork_data>   store_and_index( const block_id_type& id, const full_block& blk );
@@ -77,6 +57,7 @@ namespace bts { namespace blockchain {
             vector<block_id_type>                       get_fork_history( const block_id_type& id );
             void                                        pop_block();
             void                                        mark_invalid( const block_id_type& id, const fc::exception& reason );
+            void                                        mark_as_unchecked( const block_id_type& id );
             void                                        mark_included( const block_id_type& id, bool state );
             void                                        verify_header( const full_block&, const pending_chain_state_ptr&  );
             void                                        apply_transactions( const full_block& block,
@@ -88,7 +69,7 @@ namespace bts { namespace blockchain {
                                                                          const pending_chain_state_ptr& );
             void                                        update_head_block( const full_block& blk );
             std::vector<block_id_type>                  fetch_blocks_at_number( uint32_t block_num );
-            std::pair<block_id_type, block_fork_data>   recursive_mark_as_linked( const std::unordered_set<block_id_type>& ids );
+            std::pair<block_id_type, block_fork_data>   recursive_mark_as_linked(const std::unordered_set<block_id_type>& ids );
             void                                        recursive_mark_as_invalid( const std::unordered_set<block_id_type>& ids, const fc::exception& reason );
 
             void                                        execute_markets(const fc::time_point_sec& timestamp, const pending_chain_state_ptr& pending_state );
@@ -115,6 +96,7 @@ namespace bts { namespace blockchain {
              */
             pending_chain_state_ptr                                                     _pending_trx_state;
 
+
             chain_database*                                                             self = nullptr;
             unordered_set<chain_observer*>                                              _observers;
             digest_type                                                                 _chain_id;
@@ -126,11 +108,8 @@ namespace bts { namespace blockchain {
             bts::db::level_map<uint32_t, std::vector<block_id_type>>                    _fork_number_db;
             bts::db::level_map<block_id_type,block_fork_data>                           _fork_db;
             bts::db::cached_level_map<uint32_t, fc::variant>                            _property_db;
-#if 0
-            bts::db::level_map<proposal_id_type, proposal_record>                       _proposal_db;
-            bts::db::level_map<proposal_vote_id_type, proposal_vote>                    _proposal_vote_db;
-#endif
 
+            bts::db::level_map<block_id_type,int32_t>                                    _revalidatable_future_blocks_db; //int32_t is unused, this is a set
             /** the data required to 'undo' the changes a block made to the database */
             bts::db::level_map<block_id_type,pending_chain_state>                       _undo_state_db;
 
@@ -141,7 +120,7 @@ namespace bts { namespace blockchain {
 
             bts::db::level_map<block_id_type,full_block>                                _block_id_to_block_data_db;
 
-            std::unordered_set<transaction_id_type>                                     _known_transactions;
+            map<fc::time_point_sec, unordered_set<digest_type> >                        _unique_transactions;
             bts::db::level_map<transaction_id_type,transaction_record>                  _id_to_transaction_record_db;
 
             signed_block_header                                                         _head_block_header;
@@ -153,7 +132,7 @@ namespace bts { namespace blockchain {
             bts::db::cached_level_map<asset_id_type, asset_record>                      _asset_db;
             bts::db::cached_level_map<string, asset_id_type>                            _symbol_index_db;
 
-            bts::db::level_map<balance_id_type, balance_record>                         _balance_db;
+            bts::db::cached_level_map<balance_id_type, balance_record>                  _balance_db;
 
             bts::db::cached_level_map<account_id_type, account_record>                  _account_db;
             bts::db::cached_level_map<string, account_id_type>                          _account_index_db;
@@ -162,7 +141,7 @@ namespace bts { namespace blockchain {
             bts::db::cached_level_map<vote_del, int>                                    _delegate_vote_index_db;
 
 
-            bts::db::level_map<burn_record_key, burn_record_value>                      _burn_db;
+            bts::db::cached_level_map<burn_record_key, burn_record_value>               _burn_db;
 
             bts::db::cached_level_map<market_index_key, order_record>                   _ask_db;
             bts::db::cached_level_map<market_index_key, order_record>                   _bid_db;
@@ -170,12 +149,31 @@ namespace bts { namespace blockchain {
             bts::db::cached_level_map<market_index_key, order_record>                   _relative_bid_db;
             bts::db::cached_level_map<market_index_key, order_record>                   _short_db;
             bts::db::cached_level_map<market_index_key, collateral_record>              _collateral_db;
+            set< expiration_index >                                                     _collateral_expiration_index; 
             bts::db::cached_level_map<feed_index, feed_record>                          _feed_db;
 
+
+            bts::db::level_map<object_id_type, object_record>                           _object_db;
+            bts::db::level_map<edge_index_key, object_id_type>                          _edge_index;
+            bts::db::level_map<edge_index_key, object_id_type>                          _reverse_edge_index;
+
+            bts::db::level_map<string, object_id_type>                                  _site_index;
+
+            /**
+             *  This index is to facilitate light weight clients and is intended mostly for
+             *  block explorers and other APIs serving data.
+             */
+            bts::db::level_map< pair<address,transaction_id_type>, int>                 _address_to_trx_index;
+
+            bts::db::level_map<pair<asset_id_type,address>, object_id_type>             _auth_db;
+            bts::db::level_map<pair<asset_id_type,proposal_id_type>, proposal_record>   _asset_proposal_db;
+
             bts::db::cached_level_map<std::pair<asset_id_type,asset_id_type>, market_status> _market_status_db;
-            bts::db::level_map<market_history_key, market_history_record>               _market_history_db;
+            bts::db::cached_level_map<market_history_key, market_history_record>        _market_history_db;
 
             std::map<operation_type_enum, std::deque<operation>>                        _recent_operations;
+
+            bool _track_stats = true;
       };
   } // end namespace bts::blockchain::detail
 } } // end namespace bts::blockchain

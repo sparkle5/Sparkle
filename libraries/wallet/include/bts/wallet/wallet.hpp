@@ -19,13 +19,15 @@ namespace bts { namespace wallet {
    typedef map<string, int64_t> account_vote_summary_type;
    typedef std::pair<order_type_enum, vector<string>> order_description;
 
+   typedef map<string, map<string, vector<asset>>> account_extended_balance_type;
+
    enum delegate_status_flags
    {
-       any_delegate_status      = 0x00,
-       enabled_delegate_status  = 0x01,
-       active_delegate_status   = 0x02,
-       disabled_delegate_status = 0x04,
-       inactive_delegate_status = 0x08
+       any_delegate_status      = 0,
+       enabled_delegate_status  = 1 << 0,
+       active_delegate_status   = 1 << 1,
+       disabled_delegate_status = 1 << 2,
+       inactive_delegate_status = 1 << 3
    };
 
    class wallet
@@ -116,12 +118,12 @@ namespace bts { namespace wallet {
           *  @name Utility Methods
           */
          ///@{
-         private_key_type get_active_private_key( const string& account_name )const;
-         public_key_type  get_account_public_key( const string& account_name )const;
+         private_key_type           get_active_private_key( const string& account_name )const;
+         public_key_type            get_active_public_key( const string& account_name )const;
+         public_key_type            get_owner_public_key( const string& account_name )const;
 
-         public_key_summary get_public_key_summary( const public_key_type& pubkey ) const;
-         vector<public_key_type> get_public_keys_in_account( const string& account_name )const;
-
+         public_key_summary         get_public_key_summary( const public_key_type& pubkey ) const;
+         vector<public_key_type>    get_public_keys_in_account( const string& account_name )const;
          ///@}
 
          wallet_transaction_record get_transaction( const string& transaction_id_prefix )const;
@@ -174,7 +176,7 @@ namespace bts { namespace wallet {
 
 
          ///@param delegates_to_retrieve Type is delegate_status_flags. Uses int type to allow ORing multiple flags
-         vector<wallet_account_record> get_my_delegates( int delegates_to_retrieve = any_delegate_status )const;
+         vector<wallet_account_record> get_my_delegates( uint32_t delegates_to_retrieve = any_delegate_status )const;
 
          ///@}
 
@@ -228,7 +230,7 @@ namespace bts { namespace wallet {
 
 
          public_key_type       get_new_public_key( const string& account_name );
-         address               create_new_address( const string& account_name, const string& label);
+         address               create_new_address( const string& account_name, const string& label = "");
 
 
          void              set_address_label( const address& addr, const string& label );
@@ -367,6 +369,11 @@ namespace bts { namespace wallet {
                  bool settle,
                  bool sign
                  );
+         transaction_builder set_vote_info(
+                 const balance_id_type& balance_id,
+                 const address& voter_address,
+                 vote_selection_method selection_method
+                 );
          wallet_transaction_record publish_slate(
                  const string& account_to_publish_under,
                  const string& account_to_pay_with,
@@ -377,6 +384,16 @@ namespace bts { namespace wallet {
                  const string& account_to_pay_with,
                  bool sign
                  );
+         wallet_transaction_record collect_vested(
+                 const string& account_name,
+                 bool sign
+                 );
+         wallet_transaction_record asset_authorize_key( const string& paying_account_name,
+                                                        const string& symbol,
+                                                        const address& key,
+                                                        const object_id_type& meta,
+                                                        bool sign = true );
+
          wallet_transaction_record update_block_signing_key(
                  const string& authorizing_account_name,
                  const string& delegate_name,
@@ -401,7 +418,13 @@ namespace bts { namespace wallet {
                  const optional<variant>& public_data,
                  const optional<double>& maximum_share_supply,
                  const optional<uint64_t>& precision,
-                 bool sign
+                 const share_type& issuer_fee,
+                 uint32_t flags,
+                 uint32_t issuer_perms,
+                 const string& issuer_account_name,
+                 uint32_t required_sigs,
+                 const vector<address>& authority,
+                 bool sign = true
                  );
          wallet_transaction_record issue_asset(
                  double amount,
@@ -501,23 +524,6 @@ namespace bts { namespace wallet {
                  const vector<std::pair<order_type_enum,vector<string>>>& new_orders,
                  bool sign
                  );
-#if 0
-         wallet_transaction_record create_proposal(
-                 const string& delegate_account_name,
-                 const string& subject,
-                 const string& body,
-                 const string& proposal_type,
-                 const variant& data,
-                 bool sign
-                 );
-         wallet_transaction_record vote_proposal(
-                 const string& delegate_account_name,
-                 proposal_id_type proposal_id,
-                 proposal_vote::vote_type vote,
-                 const string& message,
-                 bool sign
-                 );
-#endif
          ///@} Transaction Generation Methods
 
          string                             get_key_label( const public_key_type& key )const;
@@ -532,21 +538,19 @@ namespace bts { namespace wallet {
          vector<escrow_summary>             get_escrow_balances( const string& account_name );
 
          account_balance_record_summary_type get_account_balance_records( const string& account_name = "", bool include_empty = true,
-                 const set<withdraw_condition_types>& withdraw_types = set<withdraw_condition_types>{ withdraw_signature_type } )const;
+                 uint32_t withdraw_type_mask = 1 << uint8_t( withdraw_signature_type ) )const;
          account_balance_id_summary_type    get_account_balance_ids( const string& account_name = "", bool include_empty = true,
-                 const set<withdraw_condition_types>& withdraw_types = set<withdraw_condition_types>{ withdraw_signature_type } )const;
+                 uint32_t withdraw_type_mask = 1 << uint8_t( withdraw_signature_type ) )const;
          account_balance_summary_type       get_account_balances( const string& account_name = "", bool include_empty = true,
-                 const set<withdraw_condition_types>& withdraw_types = set<withdraw_condition_types>{ withdraw_signature_type } )const;
-
+                 uint32_t withdraw_type_mask = 1 << uint8_t( withdraw_signature_type ) )const;
 
          account_balance_summary_type       get_account_yield( const string& account_name = "" )const;
          asset                              asset_worth( const asset& base, const string& price_in_symbol )const;
          asset                              get_account_net_worth( const string& account_name, const string& symbol )const;
          account_vote_summary_type          get_account_vote_summary( const string& account_name = "" )const;
 
-         map<order_id_type, market_order>   get_market_orders( const string& account_name, uint32_t limit)const;
-         map<order_id_type, market_order>   get_market_orders( const string& quote, const string& base,
-                                                               uint32_t limit, const string& account_name )const;
+         map<order_id_type, market_order>   get_market_orders( const string& account_name, const string& quote_symbol,
+                                                               const string& base_symbol, uint32_t limit )const;
 
          vector<wallet_transaction_record>  get_transaction_history( const string& account_name = string(),
                                                                      uint32_t start_block_num = 0,
